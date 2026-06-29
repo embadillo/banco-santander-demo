@@ -3,9 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Santander Select | Centro de Ayuda</title>
+  <title>Banco Santander | Centro de Ayuda</title>
   <script defer src="https://www.gstatic.com/chat-messenger/sdk/prod/v1.16/chat-messenger.js"></script>
   <link rel="stylesheet" href="https://www.gstatic.com/chat-messenger/sdk/prod/v1.16/themes/chat-messenger-default.css">
+  <link rel="stylesheet" href="https://www.gstatic.com/chat-messenger/sdk/prod/v1.16/themes/chat-messenger-layout.css">
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
@@ -382,8 +383,8 @@
     chat-messenger {
       z-index: 999;
       position: fixed !important;
-      right: 28px !important;
-      bottom: 88px !important;
+      right: 40px !important;
+      bottom: 40px !important;
 
       /* Santander color tokens */
       --chat-messenger-color--primary: #EC0000;
@@ -411,6 +412,11 @@
 
       --chat-messenger-font-family: 'Inter', sans-serif;
 
+      /* Make the floating launcher easier to see and click */
+      width: 96px !important;
+      min-width: 96px !important;
+      filter: drop-shadow(0 16px 30px rgba(236,0,0,0.30));
+
       --chat-messenger-typescale--title-large-font-weight: 500;
       --chat-messenger-typescale--title-medium-font-weight: 500;
       --chat-messenger-typescale--body-medium-font-weight: 400;
@@ -422,8 +428,8 @@
 
     @media (max-width: 600px) {
       chat-messenger {
-        right: 18px !important;
-        bottom: 72px !important;
+        right: 20px !important;
+        bottom: 24px !important;
       }
     }
   </style>
@@ -450,7 +456,7 @@
       <svg viewBox="0 0 40 52" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M20 0C20 0 6 12 6 26C6 34.284 12.716 41 21 41C29.284 41 36 34.284 36 26C36 20 32 15 32 15C32 15 30 22 24 24C24 24 28 18 20 10C20 10 16 18 16 26C16 26 13 23 14 17C14 17 10 20 10 26C10 32 14.686 36 21 36C27.314 36 32 31.314 32 25C32 22 30 19.5 30 19.5C30 19.5 28 24 23 25C23 25 26 20 20 0Z" fill="#EC0000"/>
       </svg>
-      <span class="nav-logo-text">Santander <span>Select</span></span>
+      <span class="nav-logo-text">Banco <span>Santander</span></span>
     </a>
 
     <button class="nav-cta">
@@ -555,12 +561,30 @@
   </section>
 
   <!-- ── CHAT WIDGET ── -->
-  <chat-messenger url-allowlist="*" language-code="es">
-    <chat-messenger-chat-bubble
-      chat-title="Santander | Asistente Virtual"
-      chat-title-icon="data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2040%2052%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M20%200C20%200%206%2012%206%2026C6%2034.284%2012.716%2041%2021%2041C29.284%2041%2036%2034.284%2036%2026C36%2020%2032%2015%2032%2015C32%2015%2030%2022%2024%2024C24%2024%2028%2018%2020%2010C20%2010%2016%2018%2016%2026C16%2026%2013%2023%2014%2017C14%2017%2010%2020%2010%2026C10%2032%2014.686%2036%2021%2036C27.314%2036%2032%2031.314%2032%2025C32%2022%2030%2019.5%2030%2019.5C30%2019.5%2028%2024%2023%2025C23%2025%2026%2020%2020%200Z%22%20fill%3D%22%23EC0000%22/%3E%3C/svg%3E"
-      enable-audio-input>
-    </chat-messenger-chat-bubble>
+  <chat-messenger
+    url-allowlist="*"
+    language-code="es"
+  >
+    <chat-messenger-container
+      chat-title="Banco Santander"
+      chat-title-icon="https://gstatic.com/dialogflow-console/common/assets/ccai-favicons/conversational_agents.png"
+      enable-file-upload
+      enable-audio-input
+    >
+      <chat-reset-session-button
+        slot="titlebar-actions"
+        title-text="Start new chat"
+      ></chat-reset-session-button>
+      <chat-toggle-dialog-button
+        slot="titlebar-actions"
+        title-text-expanded="Collapse"
+        title-text-collapsed="Expand"
+      ></chat-toggle-dialog-button>
+      <chat-messenger-close-button
+        slot="titlebar-actions"
+        title-text="Close"
+      ></chat-messenger-close-button>
+    </chat-messenger-container>
   </chat-messenger>
 
   <script>
@@ -1001,6 +1025,8 @@
           border-radius: 999px !important;
           box-shadow: 0 16px 36px rgba(236,0,0,0.30), 0 8px 18px rgba(0,0,0,0.18) !important;
           overflow: hidden !important;
+          min-width: 72px !important;
+          min-height: 72px !important;
         }
 
         /* Panel: smaller, floating, less empty-white feeling. */
@@ -1060,8 +1086,8 @@
     function polishSantanderChatWidget() {
       const chat = document.querySelector("chat-messenger");
       if (!chat) return;
-      chat.style.setProperty("right", "28px", "important");
-      chat.style.setProperty("bottom", "88px", "important");
+      chat.style.setProperty("right", "40px", "important");
+      chat.style.setProperty("bottom", "40px", "important");
       chat.style.setProperty("position", "fixed", "important");
       chat.style.setProperty("z-index", "999", "important");
 
@@ -1081,9 +1107,7 @@
       const isVoiceHandoff = !!(kycRequestId && customerDocId);
       chatSdk.registerContext(
         chatSdk.prebuilts.ces.createContext({
-          deploymentName: "projects/483471568825/locations/us/apps/27be6c70-74dc-4e50-a3e8-25b032e7c965/deployments/7cbb68f9-147f-4698-be02-e7ea5fa5d1a3",
-          tokenBroker: { enableTokenBroker: true, enableRecaptcha: false },
-          sessionParameters: { "is_voice_handoff": isVoiceHandoff }
+          deploymentName: "projects/483471568825/locations/us/apps/97456046-ad9b-4375-82eb-1a7cec0eed6b/deployments/43d529e8-3c05-415f-8b61-680e61cfb43c"
         })
       );
 
