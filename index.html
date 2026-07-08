@@ -412,9 +412,12 @@
 
       --chat-messenger-font-family: 'Inter', sans-serif;
 
-      /* Make the floating launcher easier to see and click */
-      width: 96px !important;
-      min-width: 96px !important;
+      /* NOTE: no forzamos width/min-width acá. El host <chat-messenger>
+         cambia de tamaño según el estado (lanzador cerrado, peek/mini-panel,
+         panel expandido). Forzar un ancho fijo en el host aplasta esos
+         estados intermedios (el input y los íconos se apilan). El tamaño
+         del lanzador se controla más abajo, apuntando al botón real dentro
+         del shadow DOM. */
       filter: drop-shadow(0 16px 30px rgba(236,0,0,0.30));
 
       --chat-messenger-typescale--title-large-font-weight: 500;
@@ -1107,7 +1110,11 @@
       const isVoiceHandoff = !!(kycRequestId && customerDocId);
       chatSdk.registerContext(
         chatSdk.prebuilts.ces.createContext({
-          deploymentName: "projects/483471568825/locations/us/apps/97456046-ad9b-4375-82eb-1a7cec0eed6b/deployments/43d529e8-3c05-415f-8b61-680e61cfb43c"
+          deploymentName: "projects/483471568825/locations/us/apps/97456046-ad9b-4375-82eb-1a7cec0eed6b/deployments/43d529e8-3c05-415f-8b61-680e61cfb43c",
+          tokenBroker: {
+            enableTokenBroker: true,
+            enableRecaptcha: false
+          }
         })
       );
 
