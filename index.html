@@ -419,14 +419,11 @@
 
       --chat-messenger-font-family: 'Inter', sans-serif;
 
-      /* Acotamos con max-width/max-height (no width/height fijos) para que
-         el SDK pueda decidir el tamaño real en cada estado (ícono cerrado,
-         peek/mini-panel, panel expandido) sin que se estire fuera del
-         viewport ni se aplaste en una franja vertical. */
+      /* Dejar que el SDK maneje el tamaño del panel abierto.
+         Solo controlamos la posición de la burbuja cerrada. */
       width: auto !important;
       height: auto !important;
-      max-width: min(420px, calc(100vw - 32px)) !important;
-      max-height: min(720px, calc(100vh - 32px)) !important;
+      overflow: visible !important;
       filter: drop-shadow(0 16px 30px rgba(236,0,0,0.30));
 
       --chat-messenger-typescale--title-large-font-weight: 500;
@@ -576,6 +573,7 @@
   <chat-messenger
     url-allowlist="*"
     language-code="es"
+    render-mode="slide-over"
   >
     <chat-messenger-chat-bubble
       chat-title="Banco Santander"
@@ -1031,15 +1029,13 @@
           margin: 0 !important;
         }
 
-        /* Panel: smaller, floating, less empty-white feeling. */
+        /* Panel: no forzamos altura; render-mode=slide-over controla el layout. */
         [class*="chat-window"],
         [class*="messenger-window"],
         [class*="dialog"],
         [role="dialog"] {
           max-width: min(420px, calc(100vw - 56px)) !important;
           width: min(420px, calc(100vw - 56px)) !important;
-          max-height: min(560px, calc(100vh - 180px)) !important;
-          height: min(560px, calc(100vh - 180px)) !important;
           border-radius: 18px !important;
           border: 1px solid #E0E0E0 !important;
           box-shadow: 0 24px 70px rgba(0,0,0,0.22) !important;
@@ -1075,8 +1071,6 @@
           [role="dialog"] {
             width: calc(100vw - 28px) !important;
             max-width: calc(100vw - 28px) !important;
-            height: min(560px, calc(100vh - 112px)) !important;
-            max-height: min(560px, calc(100vh - 112px)) !important;
           }
         }
       `;
