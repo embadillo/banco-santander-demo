@@ -386,10 +386,11 @@
 
     /* ── CHAT WIDGET ── */
     chat-messenger {
-      z-index: 999;
+      z-index: 9999;
       position: fixed !important;
-      right: 40px !important;
-      bottom: 40px !important;
+      right: 96px !important;
+      bottom: 96px !important;
+      display: block !important;
 
       /* Santander color tokens */
       --chat-messenger-color--primary: #EC0000;
@@ -438,8 +439,8 @@
 
     @media (max-width: 600px) {
       chat-messenger {
-        right: 20px !important;
-        bottom: 24px !important;
+        right: 28px !important;
+        bottom: 28px !important;
       }
     }
   </style>
@@ -1037,6 +1038,7 @@
           overflow: hidden !important;
           min-width: 72px !important;
           min-height: 72px !important;
+          transform: translate(0, 0) !important;
         }
 
         /* Panel: smaller, floating, less empty-white feeling. */
@@ -1096,10 +1098,12 @@
     function polishSantanderChatWidget() {
       const chat = document.querySelector("chat-messenger");
       if (!chat) return;
-      chat.style.setProperty("right", "40px", "important");
-      chat.style.setProperty("bottom", "40px", "important");
+      const isMobile = window.matchMedia("(max-width: 600px)").matches;
+      chat.style.setProperty("right", isMobile ? "28px" : "96px", "important");
+      chat.style.setProperty("bottom", isMobile ? "28px" : "96px", "important");
       chat.style.setProperty("position", "fixed", "important");
-      chat.style.setProperty("z-index", "999", "important");
+      chat.style.setProperty("display", "block", "important");
+      chat.style.setProperty("z-index", "9999", "important");
 
       const visit = (node) => {
         if (!node) return;
