@@ -573,7 +573,6 @@
   <chat-messenger
     url-allowlist="*"
     language-code="es"
-    render-mode="slide-over"
   >
     <chat-messenger-chat-bubble
       chat-title="Banco Santander"
@@ -1029,13 +1028,16 @@
           margin: 0 !important;
         }
 
-        /* Panel: no forzamos altura; render-mode=slide-over controla el layout. */
+        /* Panel abierto: compacto y anclado visualmente a la burbuja.
+           No usamos render-mode=slide-over porque centra el panel en la pantalla. */
         [class*="chat-window"],
         [class*="messenger-window"],
         [class*="dialog"],
         [role="dialog"] {
           max-width: min(420px, calc(100vw - 56px)) !important;
           width: min(420px, calc(100vw - 56px)) !important;
+          height: min(520px, calc(100vh - 180px)) !important;
+          max-height: min(520px, calc(100vh - 180px)) !important;
           border-radius: 18px !important;
           border: 1px solid #E0E0E0 !important;
           box-shadow: 0 24px 70px rgba(0,0,0,0.22) !important;
@@ -1071,6 +1073,8 @@
           [role="dialog"] {
             width: calc(100vw - 28px) !important;
             max-width: calc(100vw - 28px) !important;
+            height: min(540px, calc(100vh - 120px)) !important;
+            max-height: min(540px, calc(100vh - 120px)) !important;
           }
         }
       `;
