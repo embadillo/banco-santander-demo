@@ -388,8 +388,8 @@
     chat-messenger {
       z-index: 9999;
       position: fixed !important;
-      right: 104px !important;
-      bottom: 40px !important;
+      right: 88px !important;
+      bottom: 48px !important;
       display: block !important;
       overflow: visible !important;
 
@@ -438,7 +438,7 @@
     @media (max-width: 600px) {
       chat-messenger {
         right: 72px !important;
-        bottom: 24px !important;
+        bottom: 28px !important;
       }
     }
   </style>
@@ -579,7 +579,21 @@
       chat-title-icon="https://gstatic.com/dialogflow-console/common/assets/ccai-favicons/conversational_agents.png"
       enable-file-upload
       enable-audio-input
-    ></chat-messenger-chat-bubble>
+    >
+      <chat-reset-session-button
+        slot="titlebar-actions"
+        title-text="Start new chat"
+      ></chat-reset-session-button>
+      <chat-toggle-dialog-button
+        slot="titlebar-actions"
+        title-text-expanded="Collapse"
+        title-text-collapsed="Expand"
+      ></chat-toggle-dialog-button>
+      <chat-messenger-close-button
+        slot="titlebar-actions"
+        title-text="Close"
+      ></chat-messenger-close-button>
+    </chat-messenger-chat-bubble>
   </chat-messenger>
 
   <script>
@@ -1028,17 +1042,18 @@
           margin: 0 !important;
         }
 
-        /* Panel abierto: compacto y anclado visualmente a la burbuja.
-           No usamos render-mode=slide-over porque centra el panel en la pantalla. */
+        /* Panel abierto: más alto y ancho, anclado abajo a la derecha.
+           Evitamos render-mode=slide-over porque centra el panel en la página. */
         [class*="chat-window"],
         [class*="messenger-window"],
         [class*="dialog"],
         [role="dialog"] {
-          max-width: min(420px, calc(100vw - 56px)) !important;
-          width: min(420px, calc(100vw - 56px)) !important;
-          height: min(520px, calc(100vh - 180px)) !important;
-          max-height: min(520px, calc(100vh - 180px)) !important;
-          border-radius: 18px !important;
+          width: min(520px, calc(100vw - 96px)) !important;
+          max-width: min(520px, calc(100vw - 96px)) !important;
+          height: min(680px, calc(100vh - 120px)) !important;
+          max-height: min(680px, calc(100vh - 120px)) !important;
+          min-height: min(620px, calc(100vh - 140px)) !important;
+          border-radius: 20px !important;
           border: 1px solid #E0E0E0 !important;
           box-shadow: 0 24px 70px rgba(0,0,0,0.22) !important;
           overflow: hidden !important;
@@ -1073,8 +1088,9 @@
           [role="dialog"] {
             width: calc(100vw - 28px) !important;
             max-width: calc(100vw - 28px) !important;
-            height: min(540px, calc(100vh - 120px)) !important;
-            max-height: min(540px, calc(100vh - 120px)) !important;
+            height: min(680px, calc(100vh - 92px)) !important;
+            max-height: min(680px, calc(100vh - 92px)) !important;
+            min-height: min(560px, calc(100vh - 110px)) !important;
           }
         }
       `;
@@ -1085,11 +1101,12 @@
       const chat = document.querySelector("chat-messenger");
       if (!chat) return;
       const isMobile = window.matchMedia("(max-width: 600px)").matches;
-      chat.style.setProperty("right", isMobile ? "72px" : "104px", "important");
-      chat.style.setProperty("bottom", isMobile ? "24px" : "40px", "important");
+      chat.style.setProperty("right", isMobile ? "72px" : "88px", "important");
+      chat.style.setProperty("bottom", isMobile ? "28px" : "48px", "important");
       chat.style.setProperty("position", "fixed", "important");
       chat.style.setProperty("display", "block", "important");
       chat.style.setProperty("z-index", "9999", "important");
+      chat.style.setProperty("overflow", "visible", "important");
 
       const visit = (node) => {
         if (!node) return;
