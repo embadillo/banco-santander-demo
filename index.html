@@ -1042,16 +1042,23 @@
           margin: 0 !important;
         }
 
-        /* Panel abierto: compacto y completamente visible sin depender del zoom.
-           No usamos slide-over porque centra el panel. Lo mantenemos anclado al launcher. */
+        /* Panel abierto: lo anclamos ABAJO y a la derecha.
+           Clave: no dejar que el SDK calcule el top, porque en ciertos zooms
+           sube demasiado el panel y obliga a alejar la página para verlo entero. */
         [class*="chat-window"],
         [class*="messenger-window"],
         [class*="dialog"],
         [role="dialog"] {
-          width: min(430px, calc(100vw - 88px)) !important;
-          max-width: min(430px, calc(100vw - 88px)) !important;
-          height: min(560px, calc(100vh - 170px)) !important;
-          max-height: min(560px, calc(100vh - 170px)) !important;
+          position: fixed !important;
+          top: auto !important;
+          left: auto !important;
+          right: 96px !important;
+          bottom: 116px !important;
+          transform: none !important;
+          width: min(420px, calc(100vw - 140px)) !important;
+          max-width: min(420px, calc(100vw - 140px)) !important;
+          height: min(440px, calc(100vh - 180px)) !important;
+          max-height: min(440px, calc(100vh - 180px)) !important;
           min-height: 0 !important;
           border-radius: 20px !important;
           border: 1px solid #E0E0E0 !important;
@@ -1093,10 +1100,12 @@
           [class*="messenger-window"],
           [class*="dialog"],
           [role="dialog"] {
+            right: 12px !important;
+            bottom: 104px !important;
             width: calc(100vw - 24px) !important;
             max-width: calc(100vw - 24px) !important;
-            height: min(560px, calc(100vh - 112px)) !important;
-            max-height: min(560px, calc(100vh - 112px)) !important;
+            height: min(460px, calc(100vh - 150px)) !important;
+            max-height: min(460px, calc(100vh - 150px)) !important;
             min-height: 0 !important;
           }
         }
@@ -1114,6 +1123,8 @@
       chat.style.setProperty("display", "block", "important");
       chat.style.setProperty("z-index", "9999", "important");
       chat.style.setProperty("overflow", "visible", "important");
+      chat.style.setProperty("max-height", "calc(100vh - 24px)", "important");
+      chat.style.setProperty("max-width", "calc(100vw - 24px)", "important");
 
       const visit = (node) => {
         if (!node) return;
