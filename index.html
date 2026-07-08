@@ -388,9 +388,10 @@
     chat-messenger {
       z-index: 9999;
       position: fixed !important;
-      right: 32px !important;
-      bottom: 32px !important;
+      right: 104px !important;
+      bottom: 40px !important;
       display: block !important;
+      overflow: visible !important;
 
       /* Santander color tokens */
       --chat-messenger-color--primary: #EC0000;
@@ -439,8 +440,8 @@
 
     @media (max-width: 600px) {
       chat-messenger {
-        right: 20px !important;
-        bottom: 20px !important;
+        right: 72px !important;
+        bottom: 24px !important;
       }
     }
   </style>
@@ -1022,9 +1023,12 @@
           border-radius: 999px !important;
           box-shadow: 0 16px 36px rgba(236,0,0,0.30), 0 8px 18px rgba(0,0,0,0.18) !important;
           overflow: hidden !important;
+          width: 72px !important;
+          height: 72px !important;
           min-width: 72px !important;
           min-height: 72px !important;
           transform: translate(0, 0) !important;
+          margin: 0 !important;
         }
 
         /* Panel: smaller, floating, less empty-white feeling. */
@@ -1083,8 +1087,8 @@
       const chat = document.querySelector("chat-messenger");
       if (!chat) return;
       const isMobile = window.matchMedia("(max-width: 600px)").matches;
-      chat.style.setProperty("right", isMobile ? "20px" : "32px", "important");
-      chat.style.setProperty("bottom", isMobile ? "20px" : "32px", "important");
+      chat.style.setProperty("right", isMobile ? "72px" : "104px", "important");
+      chat.style.setProperty("bottom", isMobile ? "24px" : "40px", "important");
       chat.style.setProperty("position", "fixed", "important");
       chat.style.setProperty("display", "block", "important");
       chat.style.setProperty("z-index", "9999", "important");
