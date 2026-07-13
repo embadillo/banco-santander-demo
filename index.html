@@ -390,6 +390,20 @@
 
       --chat-messenger-font-family: 'DM Sans', Arial, sans-serif;
 
+      /* Quick actions render as <md-outlined-button> (Material Web). --md-sys-color-primary
+         drives both label text AND hover/focus state-layer color inside that component's
+         own shadow root, and chat-messenger falls it back to --on-surface (gray) unless we
+         set these Material-native custom properties. Custom properties inherit through
+         shadow boundaries even though class selectors don't, so this reaches the real button. */
+      --md-outlined-button-hover-label-text-color: #b00000;
+      --md-outlined-button-hover-state-layer-color: #ec0000;
+      --md-outlined-button-hover-state-layer-opacity: 0.12;
+      --md-outlined-button-focus-label-text-color: #b00000;
+      --md-outlined-button-pressed-label-text-color: #8f0000;
+      --md-outlined-button-pressed-state-layer-color: #ec0000;
+      --md-outlined-button-pressed-state-layer-opacity: 0.16;
+      --chat-messenger-color--action-button-outline-color: rgba(236,0,0,.22);
+
       /* Shape: corner-value-large is the documented token for carousel/quick-action cards */
       --chat-messenger-shape--corner-value-small: 8px;
       --chat-messenger-shape--corner-value-medium: 16px;
@@ -628,6 +642,74 @@
         }).observe(container, { attributes: true, attributeFilter: ['window-opened'] });
       }
     });
+
+    // ---- Quick actions: single-box layout ----
+    // .quick-actions and its md-outlined-button children live inside a shadow root that
+    // no host-page <style> or `custom-css` string can reach (class selectors don't cross
+    // shadow boundaries; only inherited custom properties do). So instead of fighting that,
+    // we walk every shadow root under #chat-wrapper and inject a real <style> element
+    // straight into the shadow root that actually contains `.quick-actions`.
+    (function () {
+      const QUICK_ACTIONS_STYLE_MARK = 'data-santander-quick-actions';
+
+      function injectInto(root) {
+        if (root.querySelector('style[' + QUICK_ACTIONS_STYLE_MARK + ']')) return;
+        const style = document.createElement('style');
+        style.setAttribute(QUICK_ACTIONS_STYLE_MARK, '');
+        style.textContent = [
+          '.quick-actions {',
+          '  display: flex !important;',
+          '  flex-direction: column !important;',
+          '  gap: 0 !important;',
+          '  background: #ffffff !important;',
+          '  border: 1px solid rgba(236,0,0,.14) !important;',
+          '  border-radius: 20px !important;',
+          '  overflow: hidden !important;',
+          '  box-shadow: 0 14px 38px rgba(0,0,0,.16), 0 3px 12px rgba(236,0,0,.14) !important;',
+          '}',
+          '.quick-actions md-outlined-button {',
+          '  --md-outlined-button-outline-width: 0 !important;',
+          '  --md-outlined-button-container-shape: 0 !important;',
+          '  border-radius: 0 !important;',
+          '  border-bottom: 1px solid rgba(236,0,0,.10) !important;',
+          '  background-color: transparent !important;',
+          '}',
+          '.quick-actions md-outlined-button:last-of-type {',
+          '  border-bottom: 0 !important;',
+          '}'
+        ].join('\n');
+        root.appendChild(style);
+      }
+
+      function scan(root) {
+        // root can be a Document or a ShadowRoot
+        root.querySelectorAll('.quick-actions').forEach(function (qa) {
+          injectInto(qa.getRootNode());
+        });
+        root.querySelectorAll('*').forEach(function (el) {
+          if (el.shadowRoot) scan(el.shadowRoot);
+        });
+      }
+
+      let pending = false;
+      function scheduleScan() {
+        if (pending) return;
+        pending = true;
+        requestAnimationFrame(function () {
+          pending = false;
+          const wrapper = document.getElementById('chat-wrapper');
+          if (wrapper) scan(wrapper);
+        });
+      }
+
+      window.addEventListener('chat-messenger-loaded', function () {
+        scheduleScan();
+        const wrapper = document.getElementById('chat-wrapper');
+        if (wrapper) {
+          new MutationObserver(scheduleScan).observe(wrapper, { childList: true, subtree: true });
+        }
+      });
+    })();
   </script>
 
   <div id="chat-wrapper">
