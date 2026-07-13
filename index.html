@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://www.gstatic.com/chat-messenger/sdk/prod/v1.16/themes/chat-messenger-layout.css">
 
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
 
     * { box-sizing: border-box; }
     html, body { margin: 0; min-height: 100%; }
@@ -26,7 +26,7 @@
     }
 
     body {
-      font-family: 'Inter', Arial, sans-serif;
+      font-family: 'DM Sans', Arial, sans-serif;
       color: var(--ink);
       background: var(--white);
       overflow-x: hidden;
@@ -182,11 +182,25 @@
     /* HERO */
     .hero {
       display: grid;
-      grid-template-columns: 1.1fr .9fr;
+      grid-template-columns: 1.08fr .92fr;
       min-height: 430px;
-      background: linear-gradient(110deg, #ef0000 0%, #c50000 100%);
-      color: white;
+      background:
+        radial-gradient(circle at 88% 24%, rgba(236,0,0,.09), transparent 28%),
+        linear-gradient(135deg, #fff 0%, #fff8f8 62%, #f7f7f7 100%);
+      color: var(--ink);
       overflow: hidden;
+      border-bottom: 1px solid #ececec;
+      position: relative;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 7px;
+      background: var(--santander-red);
     }
 
     .hero-copy {
@@ -201,11 +215,12 @@
       width: fit-content;
       padding: 7px 12px;
       border-radius: 3px;
-      background: rgba(255,255,255,.16);
+      background: #fff0f0;
       font-size: 12px;
       font-weight: 700;
       letter-spacing: 1.5px;
       margin-bottom: 18px;
+      color: #b40000;
     }
 
     .hero h1 {
@@ -220,7 +235,7 @@
       font-size: 18px;
       line-height: 1.6;
       margin: 0 0 30px;
-      color: rgba(255,255,255,.92);
+      color: #5f5f5f;
     }
 
     .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; }
@@ -230,14 +245,15 @@
       border-radius: 6px;
       padding: 14px 24px;
       font-weight: 700;
-      background: #fff;
-      color: #222;
+      background: var(--santander-red);
+      color: #fff;
+      box-shadow: 0 8px 18px rgba(236,0,0,.18);
     }
 
     .hero-btn.secondary {
-      background: transparent;
-      color: #fff;
-      border: 1px solid rgba(255,255,255,.65);
+      background: #fff;
+      color: #9d0000;
+      border: 1px solid #e6bcbc;
     }
 
     .hero-visual {
@@ -245,7 +261,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: radial-gradient(circle at center, rgba(255,255,255,.16), transparent 62%);
+      background: radial-gradient(circle at center, rgba(236,0,0,.08), transparent 62%);
     }
 
     .hero-card {
@@ -341,21 +357,21 @@
       min-height: 0 !important;
 
       --chat-messenger-color--primary: #ec0000;
-      --chat-messenger-color--primary-container: #ec0000;
+      --chat-messenger-color--primary-container: #ffe9e9;
       --chat-messenger-color--secondary: #fff0f0;
-      --chat-messenger-color--surface: #f7f7f7;
+      --chat-messenger-color--surface: #fffdfd;
       --chat-messenger-color--surface-container: #ffffff;
-      --chat-messenger-color--surface-container-high: #f3f3f3;
+      --chat-messenger-color--surface-container-high: #fff7f7;
       --chat-messenger-color--on-surface: #1a1a1a;
       --chat-messenger-color--on-surface-variant: #707070;
       --chat-messenger-color--on-primary: #ffffff;
-      --chat-messenger-color--on-primary-container: #ffffff;
+      --chat-messenger-color--on-primary-container: #990000;
       --chat-messenger-color--on-secondary: #a00000;
       --chat-messenger-color--outline: #dddddd;
       --chat-messenger-color--outline-variant: rgba(236,0,0,.16);
       --chat-messenger-color--outline-active: #ec0000;
       --chat-messenger-color--link: #c80000;
-      --chat-messenger-font-family: 'Inter', Arial, sans-serif;
+      --chat-messenger-font-family: 'DM Sans', Arial, sans-serif;
       --chat-messenger-shape--corner-value-small: 8px;
       --chat-messenger-shape--corner-value-medium: 12px;
       --chat-messenger-shape--corner-value-large: 16px;
@@ -480,9 +496,9 @@
   <main>
     <section class="hero">
       <div class="hero-copy">
-        <div class="eyebrow">BANCA DIGITAL SELECT</div>
-        <h1>Tu banco, más simple.<br>Siempre cerca.</h1>
-        <p>Consultá saldos, administrá tus tarjetas, realizá pagos y conocé productos desde una experiencia conversacional segura y personalizada.</p>
+        <div class="eyebrow">EXPERIENCIA SELECT</div>
+        <h1>Todo lo que necesitás,<br><span style="color:#ec0000">más simple.</span></h1>
+        <p>Consultá, resolvé y descubrí productos desde una experiencia digital clara, segura y personalizada.</p>
         <div class="hero-actions">
           <button class="hero-btn" onclick="openSantanderChat()">Hablar con el asistente</button>
           <button class="hero-btn secondary">Conocer beneficios</button>
@@ -603,16 +619,16 @@
         enable-file-upload
         enable-audio-input
         custom-css="
-          * { font-family: Inter, Arial, sans-serif !important; box-sizing: border-box !important; }
+          * { font-family: 'DM Sans', Arial, sans-serif !important; box-sizing: border-box !important; }
 
           main, [class*='chat-body'], [class*='message-list'], [class*='messages'], [class*='conversation'] {
-            background: #fafafa !important;
+            background: linear-gradient(180deg, #ffffff 0%, #fffafa 100%) !important;
             padding: 14px !important;
           }
 
           header, [class*='header'], [class*='title-bar'], [class*='toolbar'] {
             background: #ffffff !important;
-            border-bottom: 3px solid #ec0000 !important;
+            border-bottom: 2px solid #ec0000 !important;
             padding: 12px 14px !important;
           }
 
@@ -623,14 +639,14 @@
           }
 
           [class*='user-message'], [class*='human-message'], [class*='outgoing'], [class*='sent'] {
-            background: #ec0000 !important;
-            color: #ffffff !important;
+            background: #ffe8e8 !important;
+            color: #8f0000 !important;
             border-radius: 18px 5px 18px 18px !important;
             padding: 10px 14px !important;
             max-width: 82% !important;
-            box-shadow: none !important;
+            box-shadow: 0 1px 2px rgba(126,0,0,.04) !important;
           }
-          [class*='user-message'] *, [class*='human-message'] *, [class*='outgoing'] * { color: #ffffff !important; }
+          [class*='user-message'] *, [class*='human-message'] *, [class*='outgoing'] * { color: #8f0000 !important; }
 
           [class*='bot-message'], [class*='agent-message'], [class*='incoming'], [class*='received'] {
             background: transparent !important;
@@ -654,17 +670,17 @@
           [class*='chip'], [class*='suggestion'], [class*='quick-action'], [class*='quick-reply'], [class*='action-item'] {
             background: #ffffff !important;
             color: #1a1a1a !important;
-            border: 1px solid #dedede !important;
+            border: 1px solid #eadede !important;
             border-radius: 12px !important;
             padding: 12px 14px !important;
             width: 100% !important;
             min-height: 58px !important;
             text-align: left !important;
-            box-shadow: 0 1px 2px rgba(0,0,0,.03) !important;
+            box-shadow: 0 5px 14px rgba(60,0,0,.045) !important;
           }
 
           [class*='chip']:hover, [class*='suggestion']:hover, [class*='quick-action']:hover, [class*='action-item']:hover {
-            background: #fff7f7 !important;
+            background: #fff3f3 !important;
             border-color: #ec0000 !important;
             color: #b00000 !important;
           }
@@ -689,14 +705,14 @@
 
           [class*='input-container'], [class*='input-area'], [class*='composer'], [class*='footer'] {
             background: #ffffff !important;
-            border-top: 1px solid #e2e2e2 !important;
+            border-top: 1px solid #eedede !important;
             padding: 10px 12px !important;
           }
 
           input, textarea, [contenteditable] {
             background: #ffffff !important;
             color: #1a1a1a !important;
-            border: 1px solid #d8d8d8 !important;
+            border: 1px solid #e6dada !important;
             border-radius: 999px !important;
             min-height: 46px !important;
             padding: 10px 46px 10px 16px !important;
@@ -706,8 +722,8 @@
           input:focus, textarea:focus { border-color: #ec0000 !important; }
 
           [class*='send-btn'], button.send, button[type='submit'], [aria-label*='send'], [aria-label*='Send'] {
-            background: #ec0000 !important;
-            color: #ffffff !important;
+            background: #ffe8e8 !important;
+            color: #8f0000 !important;
             border-radius: 50% !important;
             width: 38px !important;
             height: 38px !important;
@@ -721,8 +737,8 @@
           }
 
           [class*='typing'], [class*='thinking'], [class*='loading'] {
-            background: #ffffff !important;
-            border: 1px solid #e2e2e2 !important;
+            background: #fff8f8 !important;
+            border: 1px solid #efdede !important;
             border-radius: 14px !important;
             padding: 10px 14px !important;
           }
