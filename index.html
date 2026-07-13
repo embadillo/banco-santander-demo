@@ -5,6 +5,83 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Santander Select | Asistente Virtual</title>
 
+  <script>
+    // ---- Quick actions: single-box layout (patch runs before chat-messenger.js) ----
+    // MutationObserver never crosses shadow boundaries, even with subtree:true — it only
+    // sees the DOM tree it was attached to. Since .quick-actions gets created dynamically
+    // deep inside nested shadow roots (only after the agent actually sends quick actions,
+    // not at page load), an observer on the light-DOM #chat-wrapper never fires for it.
+    // The fix: patch Element.prototype.attachShadow so we get notified the instant ANY
+    // shadow root is created anywhere on the page, and attach a dedicated observer to
+    // each one individually. This script must run before chat-messenger.js (which is
+    // why it's inline, unbuffered, and placed ahead of that <script defer> tag) so no
+    // shadow root creation slips past unpatched.
+    (function () {
+      const QUICK_ACTIONS_STYLE_MARK = 'data-santander-quick-actions';
+      const observedRoots = new WeakSet();
+      const styledRoots = new WeakSet();
+
+      function injectInto(root) {
+        if (styledRoots.has(root)) return;
+        styledRoots.add(root);
+        const style = document.createElement('style');
+        style.setAttribute(QUICK_ACTIONS_STYLE_MARK, '');
+        style.textContent = [
+          '.quick-actions {',
+          '  display: flex !important;',
+          '  flex-direction: column !important;',
+          '  gap: 0 !important;',
+          '  background: #ffffff !important;',
+          '  border: 1px solid rgba(236,0,0,.14) !important;',
+          '  border-radius: 20px !important;',
+          '  overflow: hidden !important;',
+          '  box-shadow: 0 14px 38px rgba(0,0,0,.16), 0 3px 12px rgba(236,0,0,.14) !important;',
+          '}',
+          '.quick-actions md-outlined-button {',
+          '  --md-outlined-button-outline-width: 0 !important;',
+          '  --md-outlined-button-container-shape: 0 !important;',
+          '  border-radius: 0 !important;',
+          '  border-bottom: 1px solid rgba(236,0,0,.10) !important;',
+          '  background-color: transparent !important;',
+          '}',
+          '.quick-actions md-outlined-button:last-of-type {',
+          '  border-bottom: 0 !important;',
+          '}'
+        ].join('\n');
+        root.appendChild(style);
+      }
+
+      function scanRoot(root) {
+        root.querySelectorAll('.quick-actions').forEach(function (qa) {
+          injectInto(qa.getRootNode());
+        });
+        root.querySelectorAll('*').forEach(function (el) {
+          if (el.shadowRoot) observeRoot(el.shadowRoot);
+        });
+      }
+
+      function observeRoot(root) {
+        if (observedRoots.has(root)) return;
+        observedRoots.add(root);
+        scanRoot(root);
+        new MutationObserver(function () { scanRoot(root); }).observe(root, {
+          childList: true,
+          subtree: true
+        });
+      }
+
+      const originalAttachShadow = Element.prototype.attachShadow;
+      Element.prototype.attachShadow = function (init) {
+        const shadow = originalAttachShadow.call(this, init);
+        observeRoot(shadow);
+        return shadow;
+      };
+
+      // Cover any shadow roots that might already exist (defensive; normally none yet).
+      document.addEventListener('DOMContentLoaded', function () { scanRoot(document); });
+    })();
+  </script>
+
   <script defer src="https://www.gstatic.com/chat-messenger/sdk/prod/v1.16/chat-messenger.js"></script>
   <link rel="stylesheet" href="https://www.gstatic.com/chat-messenger/sdk/prod/v1.16/themes/chat-messenger-default.css">
   <link rel="stylesheet" href="https://www.gstatic.com/chat-messenger/sdk/prod/v1.16/themes/chat-messenger-layout.css">
@@ -643,73 +720,6 @@
       }
     });
 
-    // ---- Quick actions: single-box layout ----
-    // .quick-actions and its md-outlined-button children live inside a shadow root that
-    // no host-page <style> or `custom-css` string can reach (class selectors don't cross
-    // shadow boundaries; only inherited custom properties do). So instead of fighting that,
-    // we walk every shadow root under #chat-wrapper and inject a real <style> element
-    // straight into the shadow root that actually contains `.quick-actions`.
-    (function () {
-      const QUICK_ACTIONS_STYLE_MARK = 'data-santander-quick-actions';
-
-      function injectInto(root) {
-        if (root.querySelector('style[' + QUICK_ACTIONS_STYLE_MARK + ']')) return;
-        const style = document.createElement('style');
-        style.setAttribute(QUICK_ACTIONS_STYLE_MARK, '');
-        style.textContent = [
-          '.quick-actions {',
-          '  display: flex !important;',
-          '  flex-direction: column !important;',
-          '  gap: 0 !important;',
-          '  background: #ffffff !important;',
-          '  border: 1px solid rgba(236,0,0,.14) !important;',
-          '  border-radius: 20px !important;',
-          '  overflow: hidden !important;',
-          '  box-shadow: 0 14px 38px rgba(0,0,0,.16), 0 3px 12px rgba(236,0,0,.14) !important;',
-          '}',
-          '.quick-actions md-outlined-button {',
-          '  --md-outlined-button-outline-width: 0 !important;',
-          '  --md-outlined-button-container-shape: 0 !important;',
-          '  border-radius: 0 !important;',
-          '  border-bottom: 1px solid rgba(236,0,0,.10) !important;',
-          '  background-color: transparent !important;',
-          '}',
-          '.quick-actions md-outlined-button:last-of-type {',
-          '  border-bottom: 0 !important;',
-          '}'
-        ].join('\n');
-        root.appendChild(style);
-      }
-
-      function scan(root) {
-        // root can be a Document or a ShadowRoot
-        root.querySelectorAll('.quick-actions').forEach(function (qa) {
-          injectInto(qa.getRootNode());
-        });
-        root.querySelectorAll('*').forEach(function (el) {
-          if (el.shadowRoot) scan(el.shadowRoot);
-        });
-      }
-
-      let pending = false;
-      function scheduleScan() {
-        if (pending) return;
-        pending = true;
-        requestAnimationFrame(function () {
-          pending = false;
-          const wrapper = document.getElementById('chat-wrapper');
-          if (wrapper) scan(wrapper);
-        });
-      }
-
-      window.addEventListener('chat-messenger-loaded', function () {
-        scheduleScan();
-        const wrapper = document.getElementById('chat-wrapper');
-        if (wrapper) {
-          new MutationObserver(scheduleScan).observe(wrapper, { childList: true, subtree: true });
-        }
-      });
-    })();
   </script>
 
   <div id="chat-wrapper">
