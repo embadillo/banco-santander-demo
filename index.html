@@ -357,19 +357,26 @@
       min-height: 0 !important;
 
       --chat-messenger-color--primary: #ec0000;
-      --chat-messenger-color--primary-container: #ffe9e9;
-      --chat-messenger-color--secondary: #fff0f0;
-      --chat-messenger-color--surface: #fffdfd;
+      --chat-messenger-color--primary-container: #fff0f0;
+      --chat-messenger-color--secondary: #ffe5e5;
+      --chat-messenger-color--surface: #fffafa;
       --chat-messenger-color--surface-container: #ffffff;
-      --chat-messenger-color--surface-container-high: #fff7f7;
-      --chat-messenger-color--on-surface: #1a1a1a;
-      --chat-messenger-color--on-surface-variant: #707070;
+      --chat-messenger-color--surface-container-high: #fff4f4;
+      --chat-messenger-color--on-surface: #242424;
+      --chat-messenger-color--on-surface-variant: #6f6f6f;
       --chat-messenger-color--on-primary: #ffffff;
-      --chat-messenger-color--on-primary-container: #990000;
-      --chat-messenger-color--on-secondary: #a00000;
-      --chat-messenger-color--outline: #dddddd;
-      --chat-messenger-color--outline-variant: rgba(236,0,0,.16);
+      --chat-messenger-color--on-primary-container: #8f0000;
+      --chat-messenger-color--on-secondary: #8f0000;
+      --chat-messenger-color--state-layer-on-surface: rgba(236,0,0,.08);
+      --chat-messenger-color--state-layer-on-primary: rgba(255,255,255,.10);
+      --chat-messenger-color--state-layer-on-secondary: rgba(236,0,0,.10);
+      --chat-messenger-color--state-on-surface-mute: rgba(68,71,70,.38);
+      --chat-messenger-color--outline: #ded4d4;
+      --chat-messenger-color--outline-variant: rgba(236,0,0,.14);
       --chat-messenger-color--outline-active: #ec0000;
+      --chat-messenger-color--error: #b3261e;
+      --chat-messenger-color--error-container: #f9dedc;
+      --chat-messenger-color--on-error-container: #8c1d18;
       --chat-messenger-color--link: #c80000;
       --chat-messenger-font-family: 'DM Sans', Arial, sans-serif;
       --chat-messenger-shape--corner-value-small: 8px;
@@ -622,14 +629,17 @@
           * { font-family: 'DM Sans', Arial, sans-serif !important; box-sizing: border-box !important; }
 
           main, [class*='chat-body'], [class*='message-list'], [class*='messages'], [class*='conversation'] {
-            background: linear-gradient(180deg, #ffffff 0%, #fffafa 100%) !important;
-            padding: 14px !important;
+            background:
+              radial-gradient(circle at 100% 0%, rgba(236,0,0,.035), transparent 34%),
+              linear-gradient(180deg, #ffffff 0%, #fffafa 100%) !important;
+            padding: 16px !important;
           }
 
           header, [class*='header'], [class*='title-bar'], [class*='toolbar'] {
-            background: #ffffff !important;
-            border-bottom: 2px solid #ec0000 !important;
-            padding: 12px 14px !important;
+            background: linear-gradient(180deg, #ffffff 0%, #fffdfd 100%) !important;
+            border-bottom: 1px solid #eadede !important;
+            box-shadow: inset 0 -3px 0 #ec0000 !important;
+            padding: 13px 15px !important;
           }
 
           [class*='chat-title'], [class*='title'] {
@@ -668,21 +678,48 @@
           }
 
           [class*='chip'], [class*='suggestion'], [class*='quick-action'], [class*='quick-reply'], [class*='action-item'] {
+            position: relative !important;
+            overflow: hidden !important;
             background: #ffffff !important;
-            color: #1a1a1a !important;
-            border: 1px solid #eadede !important;
-            border-radius: 12px !important;
-            padding: 12px 14px !important;
+            color: #242424 !important;
+            border: 1px solid #e6dddd !important;
+            border-left: 3px solid #f1caca !important;
+            border-radius: 14px !important;
+            padding: 12px 36px 12px 14px !important;
             width: 100% !important;
-            min-height: 58px !important;
+            min-height: 60px !important;
             text-align: left !important;
-            box-shadow: 0 5px 14px rgba(60,0,0,.045) !important;
+            box-shadow: 0 4px 12px rgba(80,0,0,.035) !important;
+            transition: background .16s ease, border-color .16s ease, transform .16s ease, box-shadow .16s ease !important;
+          }
+
+          [class*='chip']::after, [class*='suggestion']::after, [class*='quick-action']::after, [class*='action-item']::after {
+            content: '›' !important;
+            position: absolute !important;
+            right: 14px !important;
+            top: 50% !important;
+            transform: translateY(-50%) !important;
+            color: #a7a7a7 !important;
+            font-size: 22px !important;
+            font-weight: 400 !important;
           }
 
           [class*='chip']:hover, [class*='suggestion']:hover, [class*='quick-action']:hover, [class*='action-item']:hover {
-            background: #fff3f3 !important;
+            background: linear-gradient(90deg, #fff2f2 0%, #fff9f9 100%) !important;
             border-color: #ec0000 !important;
-            color: #b00000 !important;
+            border-left-color: #ec0000 !important;
+            color: #8f0000 !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 8px 18px rgba(236,0,0,.10) !important;
+          }
+
+          [class*='chip']:hover::after, [class*='suggestion']:hover::after, [class*='quick-action']:hover::after, [class*='action-item']:hover::after {
+            color: #ec0000 !important;
+          }
+
+          [class*='chip']:active, [class*='suggestion']:active, [class*='quick-action']:active, [class*='action-item']:active {
+            background: #ffe9e9 !important;
+            transform: translateY(0) !important;
           }
 
           [class*='chip'] [class*='title'], [class*='chip'] [class*='label'],
@@ -704,31 +741,42 @@
           }
 
           [class*='input-container'], [class*='input-area'], [class*='composer'], [class*='footer'] {
-            background: #ffffff !important;
-            border-top: 1px solid #eedede !important;
-            padding: 10px 12px !important;
+            background: linear-gradient(180deg, #fffdfd 0%, #ffffff 100%) !important;
+            border-top: 1px solid #eadede !important;
+            box-shadow: 0 -8px 22px rgba(80,0,0,.035) !important;
+            padding: 11px 12px !important;
           }
 
           input, textarea, [contenteditable] {
             background: #ffffff !important;
-            color: #1a1a1a !important;
-            border: 1px solid #e6dada !important;
+            color: #242424 !important;
+            border: 1px solid #dfd3d3 !important;
             border-radius: 999px !important;
             min-height: 46px !important;
             padding: 10px 46px 10px 16px !important;
             outline: none !important;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,.02) !important;
+            transition: border-color .16s ease, box-shadow .16s ease !important;
           }
-          input::placeholder, textarea::placeholder { color: #9a9a9a !important; }
-          input:focus, textarea:focus { border-color: #ec0000 !important; }
+          input::placeholder, textarea::placeholder { color: #999999 !important; }
+          input:focus, textarea:focus {
+            border-color: #ec0000 !important;
+            box-shadow: 0 0 0 3px rgba(236,0,0,.10) !important;
+          }
 
           [class*='send-btn'], button.send, button[type='submit'], [aria-label*='send'], [aria-label*='Send'] {
-            background: #ffe8e8 !important;
-            color: #8f0000 !important;
+            background: #ec0000 !important;
+            color: #ffffff !important;
             border-radius: 50% !important;
             width: 38px !important;
             height: 38px !important;
             min-width: 38px !important;
-            box-shadow: 0 2px 8px rgba(236,0,0,.24) !important;
+            box-shadow: 0 4px 12px rgba(236,0,0,.28) !important;
+            transition: transform .15s ease, background .15s ease !important;
+          }
+          [class*='send-btn']:hover, button.send:hover, button[type='submit']:hover, [aria-label*='send']:hover, [aria-label*='Send']:hover {
+            background: #c90000 !important;
+            transform: scale(1.04) !important;
           }
 
           [aria-label*='microphone'], [aria-label*='Microphone'], [aria-label*='audio'], [aria-label*='Audio'] {
