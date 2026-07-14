@@ -1,70 +1,60 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Santander Select | Asistente Virtual</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Santander | Banca simple, rápida y personal</title>
 
   <script>
-    // ---- Quick actions: single-box layout (patch runs before chat-messenger.js) ----
-    // MutationObserver never crosses shadow boundaries, even with subtree:true — it only
-    // sees the DOM tree it was attached to. Since .quick-actions gets created dynamically
-    // deep inside nested shadow roots (only after the agent actually sends quick actions,
-    // not at page load), an observer on the light-DOM #chat-wrapper never fires for it.
-    // The fix: patch Element.prototype.attachShadow so we get notified the instant ANY
-    // shadow root is created anywhere on the page, and attach a dedicated observer to
-    // each one individually. This script must run before chat-messenger.js (which is
-    // why it's inline, unbuffered, and placed ahead of that <script defer> tag) so no
-    // shadow root creation slips past unpatched.
     (function () {
-      const QUICK_ACTIONS_STYLE_MARK = 'data-santander-quick-actions';
       const observedRoots = new WeakSet();
       const styledRoots = new WeakSet();
 
-      function injectInto(root) {
+      function injectQuickActionStyles(root) {
         if (styledRoots.has(root)) return;
         styledRoots.add(root);
+
         const style = document.createElement('style');
-        style.setAttribute(QUICK_ACTIONS_STYLE_MARK, '');
-        style.textContent = [
-          '.quick-actions {',
-          '  display: flex !important;',
-          '  flex-direction: column !important;',
-          '  gap: 0 !important;',
-          '  background: #ffffff !important;',
-          '  border: 1px solid rgba(236,0,0,.14) !important;',
-          '  border-radius: 20px !important;',
-          '  overflow: hidden !important;',
-          '  box-shadow: 0 14px 38px rgba(0,0,0,.16), 0 3px 12px rgba(236,0,0,.14) !important;',
-          '}',
-          '.quick-actions md-outlined-button {',
-          '  --md-outlined-button-outline-width: 0 !important;',
-          '  --md-outlined-button-container-shape: 0 !important;',
-          '  border-radius: 0 !important;',
-          '  border-bottom: 1px solid rgba(236,0,0,.10) !important;',
-          '  background-color: transparent !important;',
-          '}',
-          '.quick-actions md-outlined-button:last-of-type {',
-          '  border-bottom: 0 !important;',
-          '}'
-        ].join('\n');
+        style.textContent = `
+          .quick-actions {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 0 !important;
+            width: 100% !important;
+            overflow: hidden !important;
+            background: #fff !important;
+            border: 1px solid rgba(236,0,0,.12) !important;
+            border-radius: 18px !important;
+            box-shadow: 0 10px 28px rgba(31,17,17,.08) !important;
+          }
+          .quick-actions md-outlined-button {
+            --md-outlined-button-outline-width: 0 !important;
+            --md-outlined-button-container-shape: 0 !important;
+            border-radius: 0 !important;
+            border-bottom: 1px solid rgba(236,0,0,.09) !important;
+            background: transparent !important;
+          }
+          .quick-actions md-outlined-button:last-of-type {
+            border-bottom: 0 !important;
+          }
+        `;
         root.appendChild(style);
       }
 
-      function scanRoot(root) {
-        root.querySelectorAll('.quick-actions').forEach(function (qa) {
-          injectInto(qa.getRootNode());
+      function scan(root) {
+        root.querySelectorAll('.quick-actions').forEach((el) => {
+          injectQuickActionStyles(el.getRootNode());
         });
-        root.querySelectorAll('*').forEach(function (el) {
-          if (el.shadowRoot) observeRoot(el.shadowRoot);
+        root.querySelectorAll('*').forEach((el) => {
+          if (el.shadowRoot) observe(el.shadowRoot);
         });
       }
 
-      function observeRoot(root) {
+      function observe(root) {
         if (observedRoots.has(root)) return;
         observedRoots.add(root);
-        scanRoot(root);
-        new MutationObserver(function () { scanRoot(root); }).observe(root, {
+        scan(root);
+        new MutationObserver(() => scan(root)).observe(root, {
           childList: true,
           subtree: true
         });
@@ -73,421 +63,286 @@
       const originalAttachShadow = Element.prototype.attachShadow;
       Element.prototype.attachShadow = function (init) {
         const shadow = originalAttachShadow.call(this, init);
-        observeRoot(shadow);
+        observe(shadow);
         return shadow;
       };
 
-      // Cover any shadow roots that might already exist (defensive; normally none yet).
-      document.addEventListener('DOMContentLoaded', function () { scanRoot(document); });
+      document.addEventListener('DOMContentLoaded', () => scan(document));
     })();
   </script>
 
   <script defer src="https://www.gstatic.com/chat-messenger/sdk/prod/v1.16/chat-messenger.js"></script>
-  <link rel="stylesheet" href="https://www.gstatic.com/chat-messenger/sdk/prod/v1.16/themes/chat-messenger-default.css">
-  <link rel="stylesheet" href="https://www.gstatic.com/chat-messenger/sdk/prod/v1.16/themes/chat-messenger-layout.css">
+  <link rel="stylesheet" href="https://www.gstatic.com/chat-messenger/sdk/prod/v1.16/themes/chat-messenger-default.css" />
 
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
-
-    * { box-sizing: border-box; }
-    html, body { margin: 0; min-height: 100%; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
     :root {
-      --santander-red: #ec0000;
-      --santander-red-dark: #c80000;
-      --ink: #1a1a1a;
-      --muted: #6f6f6f;
-      --line: #dedede;
-      --soft: #f5f6f7;
-      --white: #ffffff;
+      --red: #ec0000;
+      --red-dark: #c90000;
+      --red-soft: #fff1f1;
+      --ink: #201919;
+      --muted: #716767;
+      --line: #eadfdf;
+      --surface: #fff;
+      --canvas: #fffafa;
+      --shadow: 0 20px 60px rgba(66, 23, 23, .11);
     }
 
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
     body {
-      font-family: 'DM Sans', Arial, sans-serif;
-      color: var(--ink);
-      background: var(--white);
+      margin: 0;
+      min-height: 100vh;
       overflow-x: hidden;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 78% 28%, rgba(236,0,0,.08), transparent 25%),
+        linear-gradient(180deg, #fff 0%, #fff 62%, #fff8f8 100%);
+      font-family: Inter, Arial, sans-serif;
     }
 
     button, input { font: inherit; }
-    button { cursor: pointer; }
+    button, a { -webkit-tap-highlight-color: transparent; }
     a { color: inherit; text-decoration: none; }
 
-    /* HEADER */
-    .topbar {
-      height: 100px;
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      align-items: center;
-      gap: 24px;
-      padding: 0 30px;
-      border-top: 1px solid var(--line);
-      border-bottom: 1px solid #cfcfcf;
-      background: #fff;
-      position: sticky;
-      top: 0;
-      z-index: 100;
+    .shell {
+      width: min(1640px, calc(100% - 64px));
+      margin: 0 auto;
     }
 
-    .topbar-left,
-    .topbar-right {
+    .nav {
+      height: 86px;
       display: flex;
       align-items: center;
-      gap: 18px;
-    }
-
-    .topbar-right { justify-content: flex-end; }
-
-    .pill {
-      height: 58px;
-      border: 1px solid #cfcfcf;
-      border-radius: 999px;
-      background: #fff;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      padding: 0 20px;
-      font-size: 18px;
-      color: #222;
-    }
-
-    .menu-pill {
-      min-width: 152px;
-      justify-content: flex-start;
-    }
-
-    .hamburger {
-      width: 28px;
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-    }
-
-    .hamburger span {
-      height: 3px;
-      width: 28px;
-      background: var(--santander-red);
-      border-radius: 2px;
+      justify-content: space-between;
+      gap: 32px;
+      border-bottom: 1px solid rgba(236,0,0,.08);
+      position: relative;
+      z-index: 3;
     }
 
     .brand {
       display: flex;
       align-items: center;
-      gap: 8px;
-      font-size: 31px;
-      font-weight: 400;
-      color: var(--santander-red);
+      gap: 11px;
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -.04em;
       white-space: nowrap;
     }
 
-    .brand svg { width: 34px; height: 40px; flex: 0 0 auto; }
-    .brand strong { font-weight: 700; }
-    .brand span { font-weight: 300; }
-
-    .avatar-pill {
-      padding-left: 12px;
-      padding-right: 18px;
+    .brand-mark {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 14px;
+      background: var(--red);
+      box-shadow: 0 8px 22px rgba(236,0,0,.24);
     }
 
-    .avatar-mark {
-      width: 38px;
-      height: 38px;
-      border-right: 1px solid #d6d6d6;
+    .brand-mark svg { width: 25px; height: 31px; }
+
+    .nav-links {
       display: flex;
       align-items: center;
-      justify-content: center;
-      color: var(--santander-red);
-      font-size: 24px;
-      font-weight: 700;
-      font-style: italic;
-      padding-right: 11px;
+      gap: 38px;
+      margin-left: auto;
+      margin-right: 24px;
+      color: #5f5555;
+      font-size: 15px;
+      font-weight: 500;
     }
 
-    .icon-btn {
-      width: 42px;
-      height: 42px;
-      border: 0;
-      background: transparent;
+    .nav-links a:hover { color: var(--red); }
+
+    .nav-actions { display: flex; gap: 12px; align-items: center; }
+
+    .btn {
+      min-height: 46px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      color: #444;
-      position: relative;
-    }
-
-    .notification {
-      position: absolute;
-      top: 0;
-      right: 1px;
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      background: var(--santander-red);
-      color: #fff;
-      font-size: 12px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 2px solid #fff;
-    }
-
-    /* SEARCH */
-    .search-strip {
-      min-height: 126px;
-      background: #f5f6f7;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      border-bottom: 1px solid #ececec;
-    }
-
-    .search-box {
-      width: min(780px, calc(100vw - 48px));
-      height: 62px;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      color: #777;
-      font-size: 24px;
-    }
-
-    .search-box svg { color: #2388ad; flex: 0 0 auto; }
-
-    /* HERO */
-    .hero {
-      display: grid;
-      grid-template-columns: 1.08fr .92fr;
-      min-height: 430px;
-      background:
-        radial-gradient(circle at 88% 24%, rgba(236,0,0,.09), transparent 28%),
-        linear-gradient(135deg, #fff 0%, #fff8f8 62%, #f7f7f7 100%);
+      padding: 0 22px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #fff;
       color: var(--ink);
-      overflow: hidden;
-      border-bottom: 1px solid #ececec;
-      position: relative;
-    }
-
-    .hero::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      width: 7px;
-      background: var(--santander-red);
-    }
-
-    .hero-copy {
-      padding: 72px 7%;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-
-    .eyebrow {
-      display: inline-flex;
-      width: fit-content;
-      padding: 7px 12px;
-      border-radius: 3px;
-      background: #fff0f0;
-      font-size: 12px;
       font-weight: 700;
-      letter-spacing: 1.5px;
-      margin-bottom: 18px;
-      color: #b40000;
-    }
-
-    .hero h1 {
-      font-size: clamp(36px, 4.5vw, 62px);
-      line-height: 1.05;
-      margin: 0 0 18px;
-      letter-spacing: -1.8px;
-    }
-
-    .hero p {
-      max-width: 650px;
-      font-size: 18px;
-      line-height: 1.6;
-      margin: 0 0 30px;
-      color: #5f5f5f;
-    }
-
-    .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; }
-
-    .hero-btn {
-      border: 0;
-      border-radius: 6px;
-      padding: 14px 24px;
-      font-weight: 700;
-      background: var(--santander-red);
-      color: #fff;
-      box-shadow: 0 8px 18px rgba(236,0,0,.18);
-    }
-
-    .hero-btn.secondary {
-      background: #fff;
-      color: #9d0000;
-      border: 1px solid #e6bcbc;
-    }
-
-    .hero-visual {
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: radial-gradient(circle at center, rgba(236,0,0,.08), transparent 62%);
-    }
-
-    .hero-card {
-      width: min(360px, 80%);
-      aspect-ratio: 1.58;
-      border-radius: 20px;
-      background: linear-gradient(145deg, #242424, #070707);
-      box-shadow: 0 30px 60px rgba(0,0,0,.28);
-      padding: 28px;
-      transform: rotate(-4deg);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .hero-card::after {
-      content: '';
-      position: absolute;
-      width: 240px;
-      height: 240px;
-      border-radius: 50%;
-      background: rgba(236,0,0,.35);
-      right: -85px;
-      top: -80px;
-    }
-
-    .hero-card-title { font-size: 24px; font-weight: 700; position: relative; z-index: 1; }
-    .hero-card-sub { margin-top: 10px; color: rgba(255,255,255,.7); position: relative; z-index: 1; }
-    .hero-card-number { position: absolute; bottom: 28px; left: 28px; letter-spacing: 4px; z-index: 1; }
-
-    /* QUICK ACTIONS */
-    .quick-section { padding: 54px 7% 70px; }
-    .section-title {
-      color: #666;
-      font-size: 14px;
-      font-weight: 700;
-      letter-spacing: 1.4px;
-      margin-bottom: 24px;
-    }
-
-    .quick-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 16px;
-    }
-
-    .quick-card {
-      min-height: 160px;
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      padding: 24px;
-      background: #fff;
+      cursor: pointer;
       transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
     }
 
-    .quick-card:hover {
-      transform: translateY(-3px);
-      border-color: #f4aaaa;
-      box-shadow: 0 12px 28px rgba(0,0,0,.08);
+    .btn:hover { transform: translateY(-1px); border-color: #e7bcbc; }
+    .btn.primary {
+      color: #fff;
+      background: var(--red);
+      border-color: var(--red);
+      box-shadow: 0 10px 24px rgba(236,0,0,.23);
+    }
+    .btn.primary:hover { background: var(--red-dark); }
+
+    .hero {
+      min-height: 680px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.12fr) minmax(520px, .88fr);
+      align-items: center;
+      gap: 58px;
+      padding: 64px 0 46px;
+      position: relative;
     }
 
-    .quick-icon { font-size: 28px; margin-bottom: 16px; }
-    .quick-card h3 { margin: 0 0 8px; font-size: 17px; }
-    .quick-card p { margin: 0; color: #747474; line-height: 1.5; font-size: 14px; }
+    .hero-copy { max-width: 780px; padding-bottom: 36px; }
 
-    footer {
-      border-top: 1px solid #e2e2e2;
-      background: #fafafa;
-      padding: 24px 7%;
+    .badge {
+      width: fit-content;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border: 1px solid rgba(236,0,0,.18);
+      border-radius: 999px;
+      background: rgba(255,255,255,.82);
+      color: #a60000;
+      font-size: 13px;
+      font-weight: 700;
+      box-shadow: 0 6px 20px rgba(84,18,18,.04);
+    }
+
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--red);
+      box-shadow: 0 0 0 5px rgba(236,0,0,.09);
+    }
+
+    h1 {
+      margin: 34px 0 26px;
+      max-width: 800px;
+      font-size: clamp(54px, 5.8vw, 92px);
+      line-height: .98;
+      letter-spacing: -.065em;
+      font-weight: 800;
+    }
+
+    h1 span { color: var(--red); }
+
+    .hero-copy > p {
+      max-width: 700px;
+      margin: 0;
+      color: var(--muted);
+      font-size: clamp(17px, 1.5vw, 22px);
+      line-height: 1.65;
+      letter-spacing: -.015em;
+    }
+
+    .hero-actions {
       display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      color: #777;
-      font-size: 12px;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-top: 36px;
     }
 
-    /* CHAT: wrapper controls positioning; SDK controls its own internal layout */
+    .hero-actions .btn { min-height: 56px; padding: 0 30px; font-size: 16px; }
+
+    .trust-row {
+      width: min(760px, 100%);
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      margin-top: 54px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255,255,255,.8);
+      overflow: hidden;
+    }
+
+    .trust-item { padding: 22px 18px; text-align: center; }
+    .trust-item + .trust-item { border-left: 1px solid var(--line); }
+    .trust-item strong { display: block; font-size: 24px; letter-spacing: -.04em; }
+    .trust-item span { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; }
+
+    .chat-stage {
+      min-height: 700px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      position: relative;
+    }
+
+    .ambient-card {
+      position: absolute;
+      left: -68px;
+      top: 155px;
+      width: 330px;
+      padding: 22px;
+      border: 1px solid rgba(236,0,0,.11);
+      border-radius: 24px;
+      background: rgba(255,255,255,.72);
+      box-shadow: 0 20px 60px rgba(76,27,27,.08);
+      backdrop-filter: blur(15px);
+      opacity: .62;
+    }
+
+    .ambient-card strong { display: block; font-size: 16px; }
+    .ambient-card p { margin: 8px 0 18px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .ambient-line { height: 12px; margin-top: 9px; border-radius: 6px; background: #f2e9e9; }
+    .ambient-line.short { width: 62%; }
+
     #chat-wrapper {
-      visibility: hidden;
-      pointer-events: none;
-      position: fixed;
-      right: 24px;
-      bottom: 24px;
-      width: 400px;
-      height: min(640px, calc(100vh - 48px));
-      z-index: 9999;
+      width: 520px;
+      height: min(720px, calc(100vh - 112px));
+      position: relative;
+      z-index: 5;
+      filter: drop-shadow(0 26px 44px rgba(70, 23, 23, .14));
     }
 
     chat-messenger {
       display: block !important;
-      width: 400px !important;
-      max-width: 400px !important;
+      width: 100% !important;
       height: 100% !important;
       min-height: 0 !important;
 
-      /* Containers / Surfaces */
       --chat-messenger-color--surface: #fffafa;
       --chat-messenger-color--surface-container: #ffffff;
-      --chat-messenger-color--surface-container-high: #fff2f2;
-
-      /* Brand / Accent */
+      --chat-messenger-color--surface-container-high: #fff4f4;
       --chat-messenger-color--primary: #ec0000;
-      --chat-messenger-color--primary-container: #fff0f0;
-      --chat-messenger-color--secondary: #ffe5e5;
-
-      /* Text & Icons */
-      --chat-messenger-color--on-surface: #242424;
-      --chat-messenger-color--on-surface-variant: #6f6f6f;
+      --chat-messenger-color--primary-container: #ffe8e8;
+      --chat-messenger-color--secondary: #ffdcdc;
+      --chat-messenger-color--on-surface: #261e1e;
+      --chat-messenger-color--on-surface-variant: #716767;
       --chat-messenger-color--on-primary: #ffffff;
-      --chat-messenger-color--on-primary-container: #8f0000;
-      --chat-messenger-color--on-secondary: #8f0000;
-
-      /* States: bumped opacity from the 8% default so hover reads as red, not gray */
-      --chat-messenger-color--state-layer-on-surface: rgba(236,0,0,.16);
-      --chat-messenger-color--state-layer-on-primary: rgba(255,255,255,.12);
-      --chat-messenger-color--state-layer-on-secondary: rgba(236,0,0,.16);
-      --chat-messenger-color--state-on-surface-mute: rgba(68,71,70,.38);
-
-      /* Utility */
-      --chat-messenger-color--outline: #ded4d4;
-      --chat-messenger-color--outline-variant: rgba(236,0,0,.14);
+      --chat-messenger-color--on-primary-container: #850000;
+      --chat-messenger-color--on-secondary: #850000;
+      --chat-messenger-color--state-layer-on-surface: rgba(236,0,0,.10);
+      --chat-messenger-color--state-layer-on-primary: rgba(255,255,255,.13);
+      --chat-messenger-color--state-layer-on-secondary: rgba(236,0,0,.13);
+      --chat-messenger-color--state-on-surface-mute: rgba(68,55,55,.38);
+      --chat-messenger-color--outline: #e2d4d4;
+      --chat-messenger-color--outline-variant: rgba(236,0,0,.13);
       --chat-messenger-color--outline-active: #ec0000;
       --chat-messenger-color--error: #b3261e;
       --chat-messenger-color--error-container: #f9dedc;
       --chat-messenger-color--on-error-container: #8c1d18;
-      --chat-messenger-color--link: #c80000;
-
-      --chat-messenger-font-family: 'DM Sans', Arial, sans-serif;
-
-      /* Quick actions render as <md-outlined-button> (Material Web). --md-sys-color-primary
-         drives both label text AND hover/focus state-layer color inside that component's
-         own shadow root, and chat-messenger falls it back to --on-surface (gray) unless we
-         set these Material-native custom properties. Custom properties inherit through
-         shadow boundaries even though class selectors don't, so this reaches the real button. */
-      --md-outlined-button-hover-label-text-color: #b00000;
-      --md-outlined-button-hover-state-layer-color: #ec0000;
-      --md-outlined-button-hover-state-layer-opacity: 0.12;
-      --md-outlined-button-focus-label-text-color: #b00000;
-      --md-outlined-button-pressed-label-text-color: #8f0000;
-      --md-outlined-button-pressed-state-layer-color: #ec0000;
-      --md-outlined-button-pressed-state-layer-opacity: 0.16;
-      --chat-messenger-color--action-button-outline-color: rgba(236,0,0,.22);
-
-      /* Shape: corner-value-large is the documented token for carousel/quick-action cards */
+      --chat-messenger-color--link: #c90000;
+      --chat-messenger-font-family: Inter, Arial, sans-serif;
       --chat-messenger-shape--corner-value-small: 8px;
-      --chat-messenger-shape--corner-value-medium: 16px;
-      --chat-messenger-shape--corner-value-large: 20px;
+      --chat-messenger-shape--corner-value-medium: 14px;
+      --chat-messenger-shape--corner-value-large: 18px;
       --chat-messenger-shape--corner-value-extra-large: 28px;
       --chat-messenger-shape--corner-fully-rounded: 100px;
-      --chat-messenger-elevation: 0 14px 38px rgba(0,0,0,.16), 0 3px 12px rgba(236,0,0,.14);
+      --chat-messenger-elevation: 0 20px 55px rgba(66,23,23,.14);
+      --chat-messenger-typescale--title-large-font-size: 17px;
+      --chat-messenger-typescale--title-large-font-weight: 700;
+      --chat-messenger-typescale--title-small-font-weight: 600;
+      --chat-messenger-typescale--body-medium-font-size: 14px;
+      --chat-messenger-typescale--body-small-font-size: 12px;
+      --md-outlined-button-hover-label-text-color: #980000;
+      --md-outlined-button-hover-state-layer-color: #ec0000;
+      --md-outlined-button-hover-state-layer-opacity: .09;
+      --md-outlined-button-pressed-state-layer-color: #ec0000;
+      --md-outlined-button-pressed-state-layer-opacity: .14;
     }
 
     chat-messenger-container {
@@ -497,163 +352,311 @@
       min-height: 0 !important;
     }
 
-    #fab-wrapper {
-      position: fixed;
-      right: 28px;
-      bottom: 28px;
-      z-index: 10000;
+    .capabilities {
+      padding: 44px 0 92px;
     }
 
-    #chat-fab {
-      width: 66px;
-      height: 66px;
-      border-radius: 50%;
-      border: 0;
-      background: var(--santander-red);
-      box-shadow: 0 8px 24px rgba(236,0,0,.34);
-      color: #fff;
+    .capabilities-header {
       display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: transform .18s ease;
+      justify-content: space-between;
+      align-items: end;
+      gap: 30px;
+      margin-bottom: 26px;
     }
 
-    #chat-fab:hover { transform: scale(1.06); }
+    .capabilities h2 {
+      margin: 0;
+      font-size: clamp(32px, 4vw, 52px);
+      letter-spacing: -.05em;
+    }
 
-    @media (max-width: 1100px) {
-      .topbar { grid-template-columns: auto 1fr auto; }
-      .brand { font-size: 25px; }
-      .topbar-right .pill:first-child, .icon-btn:nth-of-type(n+2) { display: none; }
-      .hero { grid-template-columns: 1fr; }
-      .hero-visual { display: none; }
-      .quick-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .capabilities-header p { max-width: 540px; margin: 0; color: var(--muted); line-height: 1.6; }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .card {
+      min-height: 190px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: rgba(255,255,255,.86);
+      transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: #efb7b7;
+      box-shadow: 0 18px 36px rgba(74,28,28,.08);
+    }
+
+    .card-icon {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 24px;
+      border-radius: 13px;
+      background: var(--red-soft);
+      font-size: 21px;
+    }
+
+    .card h3 { margin: 0 0 10px; font-size: 17px; }
+    .card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
+
+    footer {
+      padding: 24px 0 34px;
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      border-top: 1px solid var(--line);
+      color: #8b7f7f;
+      font-size: 12px;
+    }
+
+    #mobile-chat-button { display: none; }
+
+    @media (max-width: 1250px) {
+      .hero { grid-template-columns: 1fr 480px; gap: 24px; }
+      #chat-wrapper { width: 470px; }
+      .ambient-card { display: none; }
+      .nav-links { gap: 22px; }
+    }
+
+    @media (max-width: 1020px) {
+      .shell { width: min(100% - 36px, 900px); }
+      .nav-links, .nav-actions .btn:first-child { display: none; }
+      .hero { grid-template-columns: 1fr; padding-top: 50px; }
+      .hero-copy { max-width: 100%; padding-bottom: 0; }
+      .chat-stage { min-height: 680px; justify-content: center; }
+      #chat-wrapper { width: min(560px, 100%); height: 680px; }
+      .cards { grid-template-columns: repeat(2, 1fr); }
     }
 
     @media (max-width: 620px) {
-      .topbar { height: 72px; padding: 0 14px; gap: 10px; }
-      .menu-pill { min-width: 0; width: 48px; height: 48px; padding: 0; }
-      .menu-pill .menu-label { display: none; }
-      .brand { font-size: 19px; }
-      .brand svg { width: 25px; height: 30px; }
-      .avatar-pill, .topbar-right .icon-btn { display: none; }
-      .search-strip { min-height: 92px; }
-      .search-box { font-size: 17px; }
-      .hero-copy { padding: 52px 24px; }
-      .quick-section { padding: 40px 20px 56px; }
-      .quick-grid { grid-template-columns: 1fr; }
-      footer { flex-direction: column; }
-
+      .shell { width: min(100% - 24px, 560px); }
+      .nav { height: 72px; }
+      .brand { font-size: 20px; }
+      .brand-mark { width: 38px; height: 38px; border-radius: 12px; }
+      .nav-actions .btn { min-height: 40px; padding: 0 15px; font-size: 13px; }
+      h1 { font-size: 49px; margin-top: 28px; }
+      .hero-copy > p { font-size: 17px; }
+      .trust-row { grid-template-columns: repeat(2, 1fr); }
+      .trust-item:nth-child(3) { border-left: 0; border-top: 1px solid var(--line); }
+      .trust-item:nth-child(4) { border-top: 1px solid var(--line); }
+      .chat-stage { min-height: 0; padding: 20px 0 54px; }
       #chat-wrapper {
-        right: 12px;
-        bottom: 12px;
-        width: calc(100vw - 24px);
-        height: min(680px, calc(100dvh - 24px));
+        width: 100%;
+        height: min(690px, calc(100dvh - 40px));
       }
-
-      chat-messenger {
-        width: 100% !important;
-        max-width: 100% !important;
-      }
-
-      #fab-wrapper { right: 18px; bottom: 18px; }
+      .capabilities { padding-top: 20px; }
+      .capabilities-header { align-items: start; flex-direction: column; }
+      .cards { grid-template-columns: 1fr; }
+      footer { flex-direction: column; }
     }
   </style>
 </head>
 <body>
+  <div class="shell">
+    <header class="nav">
+      <a class="brand" href="#" aria-label="Santander">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 40 52" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20 0C20 0 6 12 6 26C6 34.284 12.716 41 21 41C29.284 41 36 34.284 36 26C36 20 32 15 32 15C32 15 30 22 24 24C24 24 28 18 20 10C20 10 16 18 16 26C16 26 13 23 14 17C14 17 10 20 10 26C10 32 14.686 36 21 36C27.314 36 32 31.314 32 25C32 22 30 19.5 30 19.5C30 19.5 28 24 23 25C23 25 26 20 20 0Z" fill="#fff" />
+          </svg>
+        </span>
+        Santander
+      </a>
 
-  <header class="topbar">
-    <div class="topbar-left">
-      <button class="pill menu-pill" aria-label="Abrir menú">
-        <span class="hamburger"><span></span><span></span><span></span></span>
-        <span class="menu-label">Menú</span>
-      </button>
-    </div>
+      <nav class="nav-links" aria-label="Navegación principal">
+        <a href="#productos">Productos</a>
+        <a href="#servicios">Servicios</a>
+        <a href="#beneficios">Beneficios</a>
+        <a href="#seguridad">Seguridad</a>
+      </nav>
 
-    <a href="#" class="brand" aria-label="Santander Select">
-      <svg viewBox="0 0 40 52" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <path d="M20 0C20 0 6 12 6 26C6 34.284 12.716 41 21 41C29.284 41 36 34.284 36 26C36 20 32 15 32 15C32 15 30 22 24 24C24 24 28 18 20 10C20 10 16 18 16 26C16 26 13 23 14 17C14 17 10 20 10 26C10 32 14.686 36 21 36C27.314 36 32 31.314 32 25C32 22 30 19.5 30 19.5C30 19.5 28 24 23 25C23 25 26 20 20 0Z" fill="#EC0000"/>
-      </svg>
-      <strong>Santander</strong> <span>Select</span>
-    </a>
+      <div class="nav-actions">
+        <button class="btn" type="button">Ingresar</button>
+        <button class="btn primary" type="button" onclick="focusChat()">Hablar con Santi</button>
+      </div>
+    </header>
 
-    <div class="topbar-right">
-      <button class="pill">Centro de ayuda</button>
-      <button class="pill avatar-pill">
-        <span class="avatar-mark">iU</span>
-        <strong>Emiliano</strong>
-        <span style="font-size:28px;line-height:1">›</span>
-      </button>
-      <button class="icon-btn" aria-label="Notificaciones">
-        <svg width="29" height="29" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
-        <span class="notification">4</span>
-      </button>
-      <button class="icon-btn" aria-label="Sucursales">
-        <svg width="31" height="31" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 21V6l6 3V3l6 3v5l6-3v13"/><path d="M3 17h18"/></svg>
-      </button>
-      <button class="icon-btn" aria-label="Cerrar sesión">
-        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2v10"/><path d="M5.6 5.6a9 9 0 1012.8 0"/></svg>
-      </button>
-    </div>
-  </header>
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <div class="badge"><span class="badge-dot"></span> Banca conversacional · Simple y segura</div>
+          <h1>Tu banco, más cerca.<br><span>Resolvemos rápido.</span></h1>
+          <p>Consultá saldos, movimientos, transferencias y productos desde una experiencia clara, personalizada y disponible cuando la necesitás.</p>
 
-  <section class="search-strip">
-    <div class="search-box">
-      <svg width="31" height="31" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
-      <span>Buscar operaciones, productos, secciones y consultas</span>
-    </div>
-  </section>
+          <div class="hero-actions">
+            <button class="btn primary" type="button" onclick="focusChat()">Empezar ahora</button>
+            <a class="btn" href="#servicios">Ver qué puedo hacer</a>
+          </div>
 
-  <main>
-    <section class="hero">
-      <div class="hero-copy">
-        <div class="eyebrow">EXPERIENCIA SELECT</div>
-        <h1>Todo lo que necesitás,<br><span style="color:#ec0000">más simple.</span></h1>
-        <p>Consultá, resolvé y descubrí productos desde una experiencia digital clara, segura y personalizada.</p>
-        <div class="hero-actions">
-          <button class="hero-btn" onclick="openSantanderChat()">Hablar con el asistente</button>
-          <button class="hero-btn secondary">Conocer beneficios</button>
+          <div class="trust-row" aria-label="Indicadores de la experiencia">
+            <div class="trust-item"><strong>50+</strong><span>Operaciones disponibles</span></div>
+            <div class="trust-item"><strong>&lt;30s</strong><span>Resolución promedio</span></div>
+            <div class="trust-item"><strong>24/7</strong><span>Siempre disponible</span></div>
+            <div class="trust-item"><strong>Seguro</strong><span>Protección bancaria</span></div>
+          </div>
         </div>
-      </div>
-      <div class="hero-visual">
-        <div class="hero-card">
-          <div class="hero-card-title">Santander Select</div>
-          <div class="hero-card-sub">Visa Infinite</div>
-          <div class="hero-card-number">•••• 4821</div>
+
+        <div class="chat-stage" id="chat-demo">
+          <div class="ambient-card" aria-hidden="true">
+            <strong>Todo en una sola conversación</strong>
+            <p>El asistente entiende el contexto y te acompaña durante toda la gestión.</p>
+            <div class="ambient-line"></div>
+            <div class="ambient-line short"></div>
+          </div>
+
+          <div id="chat-wrapper">
+            <chat-messenger url-allowlist="*" language-code="es" max-query-length="-1">
+              <chat-messenger-container
+                chat-title="Santander IA"
+                chat-title-icon="data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2040%2052%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M20%200C20%200%206%2012%206%2026C6%2034.284%2012.716%2041%2021%2041C29.284%2041%2036%2034.284%2036%2026C36%2020%2032%2015%2032%2015C32%2015%2030%2022%2024%2024C24%2024%2028%2018%2020%2010C20%2010%2016%2018%2016%2026C16%2026%2013%2023%2014%2017C14%2017%2010%2020%2010%2026C10%2032%2014.686%2036%2021%2036C27.314%2036%2032%2031.314%2032%2025C32%2022%2030%2019.5%2030%2019.5C30%2019.5%2028%2024%2023%2025C23%2025%2026%2020%2020%200Z%22%20fill%3D%22%23EC0000%22/%3E%3C/svg%3E"
+                bot-writing-image="data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2040%2052%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M20%200C20%200%206%2012%206%2026C6%2034.284%2012.716%2041%2021%2041C29.284%2041%2036%2034.284%2036%2026C36%2020%2032%2015%2032%2015C32%2015%2030%2022%2024%2024C24%2024%2028%2018%2020%2010C20%2010%2016%2018%2016%2026C16%2026%2013%2023%2014%2017C14%2017%2010%2020%2010%2026C10%2032%2014.686%2036%2021%2036C27.314%2036%2032%2031.314%2032%2025C32%2022%2030%2019.5%2030%2019.5C30%2019.5%2028%2024%2023%2025C23%2025%2026%2020%2020%200Z%22%20fill%3D%22%23EC0000%22%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22scale%22%20values%3D%221%3B1.10%3B1%22%20dur%3D%221.1s%22%20repeatCount%3D%22indefinite%22/%3E%3C/path%3E%3C/svg%3E"
+                enable-file-upload
+                enable-audio-input
+                custom-css="
+                  * { font-family: Inter, Arial, sans-serif !important; box-sizing: border-box !important; }
+
+                  header, [class*='header'], [class*='title-bar'], [class*='toolbar'] {
+                    background: #ffffff !important;
+                    border-bottom: 1px solid #eee3e3 !important;
+                    padding: 14px 16px !important;
+                  }
+
+                  [class*='chat-title'], [class*='title'] {
+                    font-weight: 700 !important;
+                    letter-spacing: -.01em !important;
+                  }
+
+                  main, [class*='chat-body'], [class*='message-list'], [class*='messages'], [class*='conversation'] {
+                    background: linear-gradient(180deg, #fffdfd 0%, #fff8f8 100%) !important;
+                    padding: 16px !important;
+                  }
+
+                  [class*='user-message'], [class*='human-message'], [class*='outgoing'], [class*='sent'] {
+                    background: #ffe5e5 !important;
+                    color: #850000 !important;
+                    border-radius: 18px 5px 18px 18px !important;
+                    max-width: 82% !important;
+                  }
+
+                  [class*='bot-message'], [class*='agent-message'], [class*='incoming'], [class*='received'] {
+                    background: #ffffff !important;
+                    color: #261e1e !important;
+                    border: 1px solid rgba(236,0,0,.09) !important;
+                    border-radius: 5px 18px 18px 18px !important;
+                    box-shadow: 0 4px 14px rgba(71,24,24,.05) !important;
+                    max-width: 96% !important;
+                  }
+
+                  [class*='input-container'], [class*='input-area'], [class*='composer'], [class*='footer'] {
+                    background: #ffffff !important;
+                    border-top: 1px solid #eee2e2 !important;
+                    padding: 12px !important;
+                  }
+
+                  input, textarea, [contenteditable] {
+                    background: #fff8f8 !important;
+                    border: 1px solid #eadada !important;
+                    border-radius: 999px !important;
+                    min-height: 46px !important;
+                    padding: 10px 46px 10px 16px !important;
+                    outline: none !important;
+                  }
+
+                  input:focus, textarea:focus {
+                    border-color: #ec0000 !important;
+                    box-shadow: 0 0 0 3px rgba(236,0,0,.09) !important;
+                  }
+
+                  [class*='send-btn'], button.send, button[type='submit'], [aria-label*='send'], [aria-label*='Send'] {
+                    background: #ec0000 !important;
+                    color: #fff !important;
+                    width: 40px !important;
+                    height: 40px !important;
+                    min-width: 40px !important;
+                    border-radius: 50% !important;
+                    box-shadow: 0 6px 14px rgba(236,0,0,.24) !important;
+                  }
+
+                  [class*='chip-list'], [class*='suggestion-list'], [class*='quick-actions'], [class*='actions-container'] {
+                    display: flex !important;
+                    flex-direction: column !important;
+                    gap: 0 !important;
+                    width: 100% !important;
+                    overflow: hidden !important;
+                    border: 1px solid rgba(236,0,0,.12) !important;
+                    border-radius: 18px !important;
+                    background: #fff !important;
+                    box-shadow: 0 10px 28px rgba(31,17,17,.08) !important;
+                  }
+
+                  [class*='chip'], [class*='suggestion'], [class*='quick-action'], [class*='quick-reply'], [class*='action-item'] {
+                    width: 100% !important;
+                    min-height: 58px !important;
+                    padding: 14px 16px !important;
+                    text-align: left !important;
+                    background: #fff !important;
+                    border: 0 !important;
+                    border-bottom: 1px solid rgba(236,0,0,.08) !important;
+                    border-radius: 0 !important;
+                  }
+
+                  [class*='chip']:hover, [class*='suggestion']:hover, [class*='quick-action']:hover, [class*='action-item']:hover {
+                    background: #fff1f1 !important;
+                    color: #940000 !important;
+                  }
+                ">
+                <chat-reset-session-button slot="titlebar-actions" title-text="Nueva conversación"></chat-reset-session-button>
+                <chat-toggle-dialog-button slot="titlebar-actions" title-text-expanded="Contraer" title-text-collapsed="Expandir"></chat-toggle-dialog-button>
+              </chat-messenger-container>
+            </chat-messenger>
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="quick-section">
-      <div class="section-title">ACCESOS RÁPIDOS</div>
-      <div class="quick-grid">
-        <a class="quick-card" href="#" onclick="openSantanderChat('Quiero consultar mis tarjetas'); return false;">
-          <div class="quick-icon">💳</div>
-          <h3>Mis tarjetas</h3>
-          <p>Consultá límites, consumos, vencimientos y opciones de seguridad.</p>
-        </a>
-        <a class="quick-card" href="#" onclick="openSantanderChat('Quiero realizar un pago'); return false;">
-          <div class="quick-icon">🧾</div>
-          <h3>Pagos y transferencias</h3>
-          <p>Pagá servicios, transferí dinero y revisá operaciones programadas.</p>
-        </a>
-        <a class="quick-card" href="#" onclick="openSantanderChat('Quiero conocer mis productos'); return false;">
-          <div class="quick-icon">🏦</div>
-          <h3>Productos</h3>
-          <p>Conocé cuentas, tarjetas, préstamos y alternativas para invertir.</p>
-        </a>
-        <a class="quick-card" href="#" onclick="openSantanderChat('Necesito ayuda con mis claves'); return false;">
-          <div class="quick-icon">🔐</div>
-          <h3>Claves y seguridad</h3>
-          <p>Recuperá accesos y obtené ayuda para operar de forma segura.</p>
-        </a>
-      </div>
-    </section>
-  </main>
+      <section class="capabilities" id="servicios">
+        <div class="capabilities-header">
+          <h2>Todo lo importante,<br />en una conversación.</h2>
+          <p>Una experiencia diseñada para resolver operaciones frecuentes sin perder la cercanía y confianza de Santander.</p>
+        </div>
 
-  <footer>
-    <span>© 2026 Banco Santander. Demo de experiencia conversacional.</span>
-    <span>Asistente impulsado por Google Cloud</span>
-  </footer>
+        <div class="cards">
+          <a class="card" href="#chat-demo" onclick="sendSantanderQuery('Quiero consultar mi saldo')">
+            <div class="card-icon">💰</div>
+            <h3>Consultar saldo</h3>
+            <p>Revisá cuentas, saldos disponibles y posición consolidada.</p>
+          </a>
+          <a class="card" href="#chat-demo" onclick="sendSantanderQuery('Quiero ver mis últimos movimientos')">
+            <div class="card-icon">🧾</div>
+            <h3>Ver movimientos</h3>
+            <p>Encontrá rápidamente consumos, ingresos y operaciones recientes.</p>
+          </a>
+          <a class="card" href="#chat-demo" onclick="sendSantanderQuery('Quiero hacer una transferencia')">
+            <div class="card-icon">💸</div>
+            <h3>Transferir dinero</h3>
+            <p>Enviá dinero de manera simple, guiada y segura.</p>
+          </a>
+          <a class="card" href="#chat-demo" onclick="sendSantanderQuery('Estoy buscando una tarjeta')">
+            <div class="card-icon">💳</div>
+            <h3>Encontrar una tarjeta</h3>
+            <p>Recibí una recomendación según tus necesidades y perfil.</p>
+          </a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>© 2026 Banco Santander · Demo de experiencia conversacional</span>
+      <span>Impulsado por Gemini Enterprise for Customer Experience</span>
+    </footer>
+  </div>
 
   <script>
     window.addEventListener('chat-messenger-loaded', function () {
@@ -673,266 +676,29 @@
       }
     });
 
-    window.sendSantanderQuery = function (text) {
+    function focusChat() {
+      document.getElementById('chat-demo').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => {
+        const editable = document.querySelector('chat-messenger');
+        if (editable) editable.focus?.();
+      }, 500);
+    }
+
+    function sendSantanderQuery(text) {
       const messenger = document.querySelector('chat-messenger');
       if (!messenger || !text) return;
 
-      if (typeof messenger.sendRequest === 'function') {
-        messenger.sendRequest('query', text);
-      } else if (typeof messenger.sendQuery === 'function') {
-        messenger.sendQuery(text);
-      }
-    };
-
-    function openSantanderChat(intent) {
-      const wrapper = document.getElementById('chat-wrapper');
-      const fabWrapper = document.getElementById('fab-wrapper');
-      const container = document.querySelector('chat-messenger-container');
-
-      wrapper.style.visibility = 'visible';
-      wrapper.style.pointerEvents = 'auto';
-      fabWrapper.style.display = 'none';
-
-      if (container) container.setAttribute('window-opened', '');
-      if (intent) setTimeout(() => window.sendSantanderQuery(intent), 500);
+      setTimeout(() => {
+        if (typeof messenger.sendRequest === 'function') {
+          messenger.sendRequest('query', text);
+        } else if (typeof messenger.sendQuery === 'function') {
+          messenger.sendQuery(text);
+        }
+      }, 350);
     }
 
-    function closeSantanderChat() {
-      const wrapper = document.getElementById('chat-wrapper');
-      const fabWrapper = document.getElementById('fab-wrapper');
-      wrapper.style.visibility = 'hidden';
-      wrapper.style.pointerEvents = 'none';
-      fabWrapper.style.display = 'block';
-    }
-
-    window.addEventListener('chat-messenger-loaded', function () {
-      const messenger = document.querySelector('chat-messenger');
-      const container = document.querySelector('chat-messenger-container');
-
-      if (messenger) {
-        messenger.addEventListener('chat-messenger-close', closeSantanderChat);
-      }
-
-      if (container) {
-        new MutationObserver(function () {
-          if (!container.hasAttribute('window-opened')) closeSantanderChat();
-        }).observe(container, { attributes: true, attributeFilter: ['window-opened'] });
-      }
-    });
-
+    window.focusChat = focusChat;
+    window.sendSantanderQuery = sendSantanderQuery;
   </script>
-
-  <div id="chat-wrapper">
-    <chat-messenger url-allowlist="*" language-code="es" max-query-length="-1">
-      <chat-messenger-container
-        chat-title="Banco Santander"
-        chat-title-icon="data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2040%2052%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M20%200C20%200%206%2012%206%2026C6%2034.284%2012.716%2041%2021%2041C29.284%2041%2036%2034.284%2036%2026C36%2020%2032%2015%2032%2015C32%2015%2030%2022%2024%2024C24%2024%2028%2018%2020%2010C20%2010%2016%2018%2016%2026C16%2026%2013%2023%2014%2017C14%2017%2010%2020%2010%2026C10%2032%2014.686%2036%2021%2036C27.314%2036%2032%2031.314%2032%2025C32%2022%2030%2019.5%2030%2019.5C30%2019.5%2028%2024%2023%2025C23%2025%2026%2020%2020%200Z%22%20fill%3D%22%23EC0000%22/%3E%3C/svg%3E"
-        bot-writing-image="data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2040%2052%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M20%200C20%200%206%2012%206%2026C6%2034.284%2012.716%2041%2021%2041C29.284%2041%2036%2034.284%2036%2026C36%2020%2032%2015%2032%2015C32%2015%2030%2022%2024%2024C24%2024%2028%2018%2020%2010C20%2010%2016%2018%2016%2026C16%2026%2013%2023%2014%2017C14%2017%2010%2020%2010%2026C10%2032%2014.686%2036%2021%2036C27.314%2036%2032%2031.314%2032%2025C32%2022%2030%2019.5%2030%2019.5C30%2019.5%2028%2024%2023%2025C23%2025%2026%2020%2020%200Z%22%20fill%3D%22%23EC0000%22%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22scale%22%20values%3D%221%3B1.12%3B1%22%20dur%3D%221.1s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C/path%3E%3C/svg%3E"
-        enable-file-upload
-        enable-audio-input
-        custom-css="
-          * { font-family: 'DM Sans', Arial, sans-serif !important; box-sizing: border-box !important; }
-
-          main, [class*='chat-body'], [class*='message-list'], [class*='messages'], [class*='conversation'] {
-            background:
-              radial-gradient(circle at 100% 0%, rgba(236,0,0,.035), transparent 34%),
-              linear-gradient(180deg, #ffffff 0%, #fffafa 100%) !important;
-            padding: 16px !important;
-          }
-
-          header, [class*='header'], [class*='title-bar'], [class*='toolbar'] {
-            background: linear-gradient(180deg, #ffffff 0%, #fffdfd 100%) !important;
-            border-bottom: 1px solid #eadede !important;
-            box-shadow: inset 0 -3px 0 #ec0000 !important;
-            padding: 13px 15px !important;
-          }
-
-          [class*='chat-title'], [class*='title'] {
-            color: #1a1a1a !important;
-            font-size: 15px !important;
-            font-weight: 700 !important;
-          }
-
-          [class*='user-message'], [class*='human-message'], [class*='outgoing'], [class*='sent'] {
-            background: #ffe8e8 !important;
-            color: #8f0000 !important;
-            border-radius: 18px 5px 18px 18px !important;
-            padding: 10px 14px !important;
-            max-width: 82% !important;
-            box-shadow: 0 1px 2px rgba(126,0,0,.04) !important;
-          }
-          [class*='user-message'] *, [class*='human-message'] *, [class*='outgoing'] * { color: #8f0000 !important; }
-
-          /* Bot bubble: was transparent (blended into the background) — now a real card
-             so messages read distinctly instead of floating text on a gray field */
-          [class*='bot-message'], [class*='agent-message'], [class*='incoming'], [class*='received'] {
-            background: var(--chat-messenger-color--surface-container-high, #fff2f2) !important;
-            color: #1a1a1a !important;
-            border: 1px solid rgba(236,0,0,.08) !important;
-            box-shadow: 0 2px 8px rgba(140,0,0,.05) !important;
-            border-radius: 4px var(--chat-messenger-shape--corner-value-medium, 16px)
-                           var(--chat-messenger-shape--corner-value-medium, 16px)
-                           var(--chat-messenger-shape--corner-value-medium, 16px) !important;
-            padding: 12px 15px !important;
-            width: fit-content !important;
-            max-width: 96% !important;
-            line-height: 1.55 !important;
-          }
-
-          /* ===== QUICK ACTIONS: single box, four rows, dividers instead of separate cards ===== */
-
-          [class*='chip-list'], [class*='suggestion-list'], [class*='quick-actions'], [class*='actions-container'] {
-            display: flex !important;
-            flex-direction: column !important;
-            gap: 0 !important;
-            width: 100% !important;
-            margin-top: 6px !important;
-            background: var(--chat-messenger-color--surface-container, #ffffff) !important;
-            border: 1px solid var(--chat-messenger-color--outline-variant, rgba(236,0,0,.14)) !important;
-            border-radius: var(--chat-messenger-shape--corner-value-large, 20px) !important;
-            box-shadow: var(--chat-messenger-elevation, 0 14px 38px rgba(0,0,0,.16), 0 3px 12px rgba(236,0,0,.14)) !important;
-            overflow: hidden !important;
-          }
-
-          [class*='chip'], [class*='suggestion'], [class*='quick-action'], [class*='quick-reply'], [class*='action-item'] {
-            position: relative !important;
-            background: transparent !important;
-            color: #242424 !important;
-            border: 0 !important;
-            border-bottom: 1px solid var(--chat-messenger-color--outline-variant, rgba(236,0,0,.10)) !important;
-            border-radius: 0 !important;
-            padding: 14px 36px 14px 16px !important;
-            width: 100% !important;
-            min-height: 56px !important;
-            text-align: left !important;
-            box-shadow: none !important;
-            transform: none !important;
-            transition: background .15s ease, color .15s ease !important;
-          }
-
-          [class*='chip']:last-child, [class*='suggestion']:last-child,
-          [class*='quick-action']:last-child, [class*='action-item']:last-child {
-            border-bottom: 0 !important;
-          }
-
-          [class*='chip']::after, [class*='suggestion']::after, [class*='quick-action']::after, [class*='action-item']::after {
-            content: '›' !important;
-            position: absolute !important;
-            right: 16px !important;
-            top: 50% !important;
-            transform: translateY(-50%) !important;
-            color: #a7a7a7 !important;
-            font-size: 22px !important;
-            font-weight: 400 !important;
-          }
-
-          /* Solid red-tinted hover — not the semi-transparent state-layer token,
-             which reads as gray at low opacity on a near-white surface */
-          [class*='chip']:hover, [class*='suggestion']:hover, [class*='quick-action']:hover, [class*='action-item']:hover {
-            background: #fff3f3 !important;
-            color: #8f0000 !important;
-          }
-
-          [class*='chip']:hover::after, [class*='suggestion']:hover::after,
-          [class*='quick-action']:hover::after, [class*='action-item']:hover::after {
-            color: #ec0000 !important;
-          }
-
-          [class*='chip']:active, [class*='suggestion']:active, [class*='quick-action']:active, [class*='action-item']:active {
-            background: #ffe6e6 !important;
-          }
-
-          [class*='chip'] [class*='title'], [class*='chip'] [class*='label'],
-          [class*='suggestion'] [class*='title'], [class*='quick-action'] [class*='title'] {
-            color: #1a1a1a !important;
-            font-size: var(--chat-messenger-typescale--title-small-font-size, 14px) !important;
-            font-weight: var(--chat-messenger-typescale--title-small-font-weight, 500) !important;
-            display: block !important;
-            margin-bottom: 3px !important;
-          }
-
-          [class*='chip']:hover [class*='title'], [class*='quick-action']:hover [class*='title'] {
-            color: #8f0000 !important;
-          }
-
-          [class*='chip'] [class*='description'], [class*='chip'] [class*='subtitle'],
-          [class*='suggestion'] [class*='description'], [class*='quick-action'] [class*='description'] {
-            color: #777777 !important;
-            font-size: var(--chat-messenger-typescale--body-small-font-size, 12px) !important;
-            font-weight: 400 !important;
-            line-height: 1.35 !important;
-            display: block !important;
-          }
-
-          /* ===== Input / footer ===== */
-
-          [class*='input-container'], [class*='input-area'], [class*='composer'], [class*='footer'] {
-            background: linear-gradient(180deg, #fffdfd 0%, #ffffff 100%) !important;
-            border-top: 1px solid #eadede !important;
-            box-shadow: 0 -8px 22px rgba(80,0,0,.035) !important;
-            padding: 11px 12px !important;
-          }
-
-          input, textarea, [contenteditable] {
-            background: #ffffff !important;
-            color: #242424 !important;
-            border: 1px solid #dfd3d3 !important;
-            border-radius: 999px !important;
-            min-height: 46px !important;
-            padding: 10px 46px 10px 16px !important;
-            outline: none !important;
-            box-shadow: inset 0 1px 2px rgba(0,0,0,.02) !important;
-            transition: border-color .16s ease, box-shadow .16s ease !important;
-          }
-          input::placeholder, textarea::placeholder { color: #999999 !important; }
-          input:focus, textarea:focus {
-            border-color: #ec0000 !important;
-            box-shadow: 0 0 0 3px rgba(236,0,0,.10) !important;
-          }
-
-          [class*='send-btn'], button.send, button[type='submit'], [aria-label*='send'], [aria-label*='Send'] {
-            background: #ec0000 !important;
-            color: #ffffff !important;
-            border-radius: 50% !important;
-            width: 38px !important;
-            height: 38px !important;
-            min-width: 38px !important;
-            box-shadow: 0 4px 12px rgba(236,0,0,.28) !important;
-            transition: transform .15s ease, background .15s ease !important;
-          }
-          [class*='send-btn']:hover, button.send:hover, button[type='submit']:hover, [aria-label*='send']:hover, [aria-label*='Send']:hover {
-            background: #c90000 !important;
-            transform: scale(1.04) !important;
-          }
-
-          [aria-label*='microphone'], [aria-label*='Microphone'], [aria-label*='audio'], [aria-label*='Audio'] {
-            color: #666666 !important;
-            display: inline-flex !important;
-          }
-
-          [class*='typing'], [class*='thinking'], [class*='loading'] {
-            background: #fff8f8 !important;
-            border: 1px solid #efdede !important;
-            border-radius: 14px !important;
-            padding: 10px 14px !important;
-          }
-
-          a { color: #c80000 !important; }
-        ">
-        <chat-reset-session-button slot="titlebar-actions" title-text="Nueva conversación"></chat-reset-session-button>
-        <chat-toggle-dialog-button slot="titlebar-actions" title-text-expanded="Contraer" title-text-collapsed="Expandir"></chat-toggle-dialog-button>
-        <chat-messenger-close-button slot="titlebar-actions" title-text="Cerrar"></chat-messenger-close-button>
-      </chat-messenger-container>
-    </chat-messenger>
-  </div>
-
-  <div id="fab-wrapper">
-    <button id="chat-fab" onclick="openSantanderChat()" title="Abrir asistente de Banco Santander">
-      <svg width="29" height="29" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-      </svg>
-    </button>
-  </div>
-
 </body>
 </html>
