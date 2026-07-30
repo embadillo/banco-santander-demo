@@ -458,14 +458,14 @@
       transition: transform .18s ease;
     }
     #chat-fab:hover { transform: scale(1.06); }
-    /* Custom mic button — positioned by JS relative to the real SDK composer. */
+    /* Custom mic button — mounted inside the active SDK composer shadow root. */
     #custom-mic-btn {
       position: fixed;
       left: -9999px;
       top: -9999px;
-      z-index: 10050;
-      width: 34px;
-      height: 34px;
+      z-index: 2147483000;
+      width: 36px;
+      height: 36px;
       border-radius: 50%;
       border: 1px solid #dfd3d3;
       background: #ffffff;
@@ -474,6 +474,8 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
+      padding: 0;
+      box-sizing: border-box;
       transition: background .15s ease, border-color .15s ease, color .15s ease, opacity .15s ease;
     }
     #custom-mic-btn:hover {
@@ -653,27 +655,164 @@
       return null;
     };
 
+    window.santanderDeepQueryAll = function santanderDeepQueryAll(root, selector, output, visitedRoots) {
+      const results = output || [];
+      const visited = visitedRoots || new WeakSet();
+      if (!root || visited.has(root)) return results;
+      visited.add(root);
+
+      try {
+        if (root.querySelectorAll) {
+          root.querySelectorAll(selector).forEach(function (match) {
+            if (!results.includes(match)) results.push(match);
+          });
+
+          root.querySelectorAll('*').forEach(function (element) {
+            if (element.shadowRoot) {
+              santanderDeepQueryAll(element.shadowRoot, selector, results, visited);
+            }
+          });
+        }
+      } catch (error) {
+        console.warn('[Santander] Error buscando múltiples elementos dentro del Shadow DOM:', error);
+      }
+
+      return results;
+    };
+
+    window.santanderComposedClosest = function (element, selector) {
+      let current = element;
+
+      while (current) {
+        if (current instanceof Element && current.matches(selector)) return current;
+
+        if (current.parentElement) {
+          current = current.parentElement;
+          continue;
+        }
+
+        const root = current.getRootNode ? current.getRootNode() : null;
+        current = root instanceof ShadowRoot ? root.host : null;
+      }
+
+      return null;
+    };
+
+    window.santanderIsVisible = function (element) {
+      if (!(element instanceof Element) || !element.isConnected) return false;
+
+      const rect = element.getBoundingClientRect();
+      if (rect.width < 12 || rect.height < 12) return false;
+      if (rect.bottom <= 0 || rect.right <= 0 || rect.top >= window.innerHeight || rect.left >= window.innerWidth) return false;
+
+      const style = window.getComputedStyle(element);
+      return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) !== 0;
+    };
+
+    window.getSantanderComposerParts = function () {
+      const inputSelector = 'textarea, input:not([type="hidden"]):not([type="file"]), [contenteditable="true"], [contenteditable=""]';
+      const sendSelector = [
+        'button.send',
+        'button[type="submit"]',
+        'button[aria-label*="send" i]',
+        'button[aria-label*="enviar" i]',
+        '[role="button"][aria-label*="send" i]',
+        '[role="button"][aria-label*="enviar" i]',
+        'chat-messenger-send-button'
+      ].join(', ');
+
+      const composers = window.santanderDeepQueryAll(document, 'chat-messenger-composer');
+      const inputCandidates = [];
+
+      composers.forEach(function (composer) {
+        const root = composer.shadowRoot || composer;
+        window.santanderDeepQueryAll(root, inputSelector).forEach(function (input) {
+          if (!inputCandidates.includes(input)) inputCandidates.push(input);
+        });
+      });
+
+      // Defensive fallback for SDK revisions that portal the input without exposing
+      // chat-messenger-composer as the immediate composed ancestor.
+      if (!inputCandidates.length) {
+        window.santanderDeepQueryAll(document, inputSelector).forEach(function (input) {
+          if (!inputCandidates.includes(input)) inputCandidates.push(input);
+        });
+      }
+
+      const visibleInputs = inputCandidates.filter(window.santanderIsVisible);
+      if (!visibleInputs.length) {
+        return { input: null, sendButton: null, composer: null, mountRoot: null };
+      }
+
+      // Expanded and compact composers can coexist briefly. Prefer the active field:
+      // composer ancestry first, then the widest and lowest visible candidate.
+      visibleInputs.sort(function (a, b) {
+        function score(element) {
+          const rect = element.getBoundingClientRect();
+          const placeholder = String(element.getAttribute('placeholder') || '').toLowerCase();
+          const composer = window.santanderComposedClosest(element, 'chat-messenger-composer');
+          let value = rect.width * 5 + rect.height + rect.bottom * 0.05;
+          if (composer) value += 100000;
+          if (/(pregunta|mensaje|escrib|write|message|ask)/.test(placeholder)) value += 10000;
+          if (rect.width > 600) value += 5000;
+          return value;
+        }
+        return score(b) - score(a);
+      });
+
+      const input = visibleInputs[0];
+      const composer = window.santanderComposedClosest(input, 'chat-messenger-composer');
+      const composerRoot = composer ? (composer.shadowRoot || composer) : input.getRootNode();
+      let sendCandidates = window.santanderDeepQueryAll(composerRoot, sendSelector)
+        .filter(function (element) {
+          return element.id !== 'custom-mic-btn' && window.santanderIsVisible(element);
+        });
+
+      if (!sendCandidates.length) {
+        sendCandidates = window.santanderDeepQueryAll(document, sendSelector)
+          .filter(function (element) {
+            return element.id !== 'custom-mic-btn' && window.santanderIsVisible(element);
+          });
+      }
+
+      const inputRect = input.getBoundingClientRect();
+      sendCandidates.sort(function (a, b) {
+        function distance(element) {
+          const rect = element.getBoundingClientRect();
+          const vertical = Math.abs((rect.top + rect.height / 2) - (inputRect.top + inputRect.height / 2));
+          const horizontal = Math.abs(rect.left - inputRect.right);
+          const wrongSidePenalty = rect.left < inputRect.left + inputRect.width / 2 ? 10000 : 0;
+          return vertical * 12 + horizontal + wrongSidePenalty;
+        }
+        return distance(a) - distance(b);
+      });
+
+      const sendButton = sendCandidates[0] || null;
+      let mountRoot = null;
+
+      // Mount at composer level, not inside the send button's own tiny shadow root.
+      // This keeps the mic in the SDK's expanded top layer without clipping it.
+      if (composer && composer.shadowRoot) {
+        mountRoot = composer.shadowRoot;
+      } else if (composer) {
+        const root = composer.getRootNode ? composer.getRootNode() : null;
+        mountRoot = root instanceof ShadowRoot ? root : null;
+      }
+
+      if (!mountRoot) {
+        const root = input.getRootNode ? input.getRootNode() : null;
+        mountRoot = root instanceof ShadowRoot ? root : document;
+      }
+
+      return { input, sendButton, composer, mountRoot };
+    };
+
     window.getSantanderChatInput = function () {
-      const container = document.querySelector('chat-messenger-container');
-      if (!container) {
-        console.warn('[Santander] No se encontró chat-messenger-container.');
-        return null;
+      const parts = window.getSantanderComposerParts();
+      if (!parts.input) {
+        console.warn('[Santander] No se encontró el campo de texto visible del composer.');
       }
-
-      const searchRoot = container.shadowRoot || container;
-      const composer = window.santanderDeepQuery(searchRoot, 'chat-messenger-composer');
-      const composerRoot = composer ? (composer.shadowRoot || composer) : searchRoot;
-
-      const input = window.santanderDeepQuery(
-        composerRoot,
-        'textarea, input:not([type="hidden"]):not([type="file"]), [contenteditable="true"], [contenteditable=""]'
-      );
-
-      if (!input) {
-        console.warn('[Santander] No se encontró el campo de texto del composer.');
-      }
-
-      return input;
+      return parts.input;
     };
 
     window.setSantanderChatInput = function (inputElement, text) {
@@ -718,30 +857,24 @@
         return false;
       }
 
-      const container = document.querySelector('chat-messenger-container');
-      const inputElement = window.getSantanderChatInput();
+      const parts = window.getSantanderComposerParts();
+      const inputElement = parts.input;
 
-      if (!container || !inputElement) {
-        console.error('[Santander] No se pudo resolver el input para enviar el mensaje.');
+      if (!inputElement) {
+        console.error('[Santander] No se pudo resolver el input visible para enviar el mensaje.');
         return false;
       }
 
       window.setSantanderChatInput(inputElement, cleanText);
       console.log('[Santander] Texto cargado en el composer:', cleanText);
 
-      // Give Lit / the SDK one render cycle to enable the send control.
+      // Give Lit / the SDK one render cycle to enable the active send control.
       setTimeout(function () {
-        const searchRoot = container.shadowRoot || container;
-        const composer = window.santanderDeepQuery(searchRoot, 'chat-messenger-composer');
-        const composerRoot = composer ? (composer.shadowRoot || composer) : searchRoot;
-
-        const sendButton = window.santanderDeepQuery(
-          composerRoot,
-          'button.send, button[type="submit"], button[aria-label*="send" i], button[aria-label*="enviar" i], [role="button"][aria-label*="send" i], [role="button"][aria-label*="enviar" i], chat-messenger-send-button'
-        );
+        const refreshedParts = window.getSantanderComposerParts();
+        const sendButton = refreshedParts.sendButton;
 
         if (sendButton && !sendButton.disabled && sendButton.getAttribute('aria-disabled') !== 'true') {
-          console.log('[Santander] Botón de envío encontrado; ejecutando click.');
+          console.log('[Santander] Botón de envío visible encontrado; ejecutando click.');
           sendButton.click();
           return;
         }
@@ -781,6 +914,7 @@
       wrapper.style.visibility = 'hidden';
       wrapper.style.pointerEvents = 'none';
       fabWrapper.style.display = 'block';
+      if (typeof window.hideSantanderMicButton === 'function') window.hideSantanderMicButton();
     }
 
     window.addEventListener('chat-messenger-loaded', function () {
@@ -820,22 +954,106 @@
       let isAgentSpeaking = false;
       let restartMicTimer = null;
 
-      function positionMicButton() {
-        const wrapper = document.getElementById('chat-wrapper');
-        const inputElement = window.getSantanderChatInput && window.getSantanderChatInput();
+      const styledMicRoots = new WeakSet();
+      const MIC_SIZE = 36;
+      const MIC_SEND_GAP = 7;
 
-        if (!wrapper || wrapper.style.visibility === 'hidden' || !inputElement) {
-          micBtn.style.opacity = '0';
-          micBtn.style.pointerEvents = 'none';
+      function injectMicStyles(root) {
+        if (!(root instanceof ShadowRoot) || styledMicRoots.has(root)) return;
+        styledMicRoots.add(root);
+
+        const style = document.createElement('style');
+        style.setAttribute('data-santander-mic-style', '');
+        style.textContent = [
+          '#custom-mic-btn {',
+          '  all: unset;',
+          '  position: fixed !important;',
+          '  left: -9999px;',
+          '  top: -9999px;',
+          '  z-index: 2147483000 !important;',
+          '  width: 36px;',
+          '  height: 36px;',
+          '  box-sizing: border-box;',
+          '  border-radius: 50%;',
+          '  border: 1px solid #dfd3d3;',
+          '  background: #ffffff;',
+          '  color: #666666;',
+          '  display: flex;',
+          '  align-items: center;',
+          '  justify-content: center;',
+          '  cursor: pointer;',
+          '  opacity: 0;',
+          '  pointer-events: none;',
+          '  transition: background .15s ease, border-color .15s ease, color .15s ease, opacity .15s ease;',
+          '}',
+          '#custom-mic-btn:hover { border-color: #ec0000; color: #ec0000; }',
+          '#custom-mic-btn.recording {',
+          '  background: #ec0000;',
+          '  border-color: #ec0000;',
+          '  color: #ffffff;',
+          '  animation: santanderMicPulse 1.1s ease-in-out infinite;',
+          '}',
+          '#custom-mic-btn svg { width: 17px; height: 17px; pointer-events: none; }',
+          '@keyframes santanderMicPulse {',
+          '  0%, 100% { box-shadow: 0 0 0 0 rgba(236,0,0,.35); }',
+          '  50% { box-shadow: 0 0 0 8px rgba(236,0,0,0); }',
+          '}'
+        ].join('\n');
+        root.appendChild(style);
+      }
+
+      function mountMicInActiveComposer(root) {
+        if (root instanceof ShadowRoot) {
+          injectMicStyles(root);
+          if (micBtn.getRootNode() !== root) root.appendChild(micBtn);
           return;
         }
 
-        const rect = inputElement.getBoundingClientRect();
-        if (!rect.width || !rect.height) return;
+        const wrapper = document.getElementById('chat-wrapper');
+        if (wrapper && micBtn.parentNode !== wrapper) wrapper.prepend(micBtn);
+      }
 
-        // Keep the mic inside the composer, immediately before the SDK send button.
-        const left = Math.max(8, rect.right - 72);
-        const top = Math.max(8, rect.top + (rect.height - 34) / 2);
+      function hideMicButton() {
+        micBtn.style.opacity = '0';
+        micBtn.style.pointerEvents = 'none';
+        micBtn.style.left = '-9999px';
+        micBtn.style.top = '-9999px';
+      }
+      window.hideSantanderMicButton = hideMicButton;
+
+      function positionMicButton() {
+        const wrapper = document.getElementById('chat-wrapper');
+        const parts = window.getSantanderComposerParts && window.getSantanderComposerParts();
+        const inputElement = parts && parts.input;
+
+        if (!wrapper || wrapper.style.visibility === 'hidden' || !inputElement) {
+          hideMicButton();
+          return;
+        }
+
+        const inputRect = inputElement.getBoundingClientRect();
+        if (!inputRect.width || !inputRect.height) {
+          hideMicButton();
+          return;
+        }
+
+        mountMicInActiveComposer(parts.mountRoot);
+
+        const sendRect = parts.sendButton && window.santanderIsVisible(parts.sendButton)
+          ? parts.sendButton.getBoundingClientRect()
+          : null;
+        const anchorRect = sendRect || inputRect;
+
+        // Put the mic immediately before the real send control. This is farther
+        // right than the previous input.right - 72 calculation and works in both
+        // compact and expanded layouts.
+        let left = sendRect
+          ? sendRect.left - MIC_SIZE - MIC_SEND_GAP
+          : inputRect.right - MIC_SIZE - 10;
+        let top = anchorRect.top + (anchorRect.height - MIC_SIZE) / 2;
+
+        left = Math.max(6, Math.min(left, window.innerWidth - MIC_SIZE - 6));
+        top = Math.max(6, Math.min(top, window.innerHeight - MIC_SIZE - 6));
 
         micBtn.style.left = `${Math.round(left)}px`;
         micBtn.style.top = `${Math.round(top)}px`;
@@ -845,8 +1063,10 @@
 
       function scheduleMicPosition() {
         requestAnimationFrame(positionMicButton);
-        setTimeout(positionMicButton, 120);
-        setTimeout(positionMicButton, 450);
+        setTimeout(positionMicButton, 80);
+        setTimeout(positionMicButton, 220);
+        setTimeout(positionMicButton, 500);
+        setTimeout(positionMicButton, 950);
       }
       window.scheduleSantanderMicPosition = scheduleMicPosition;
 
@@ -1004,6 +1224,7 @@
         subtree: true,
         attributes: true
       });
+      setInterval(positionMicButton, 900);
       scheduleMicPosition();
 
       // ---- Text-to-speech for new agent messages ----
@@ -1351,7 +1572,7 @@
             border: 1px solid #dfd3d3 !important;
             border-radius: 999px !important;
             min-height: 46px !important;
-            padding: 10px 46px 10px 16px !important;
+            padding: 10px 92px 10px 16px !important;
             outline: none !important;
             box-shadow: inset 0 1px 2px rgba(0,0,0,.02) !important;
             transition: border-color .16s ease, box-shadow .16s ease !important;
