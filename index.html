@@ -458,12 +458,12 @@
       transition: transform .18s ease;
     }
     #chat-fab:hover { transform: scale(1.06); }
-    /* Custom mic button — floats on top of the SDK's own input bar. */
+    /* Custom mic button — positioned by JS relative to the real SDK composer. */
     #custom-mic-btn {
-      position: absolute;
-      right: 58px;
-      bottom: 14px;
-      z-index: 10;
+      position: fixed;
+      left: -9999px;
+      top: -9999px;
+      z-index: 10050;
       width: 34px;
       height: 34px;
       border-radius: 50%;
@@ -474,7 +474,7 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      transition: background .15s ease, border-color .15s ease, color .15s ease;
+      transition: background .15s ease, border-color .15s ease, color .15s ease, opacity .15s ease;
     }
     #custom-mic-btn:hover {
       border-color: #ec0000;
@@ -771,6 +771,7 @@
       wrapper.style.pointerEvents = 'auto';
       fabWrapper.style.display = 'none';
       if (container) container.setAttribute('window-opened', '');
+      if (typeof window.scheduleSantanderMicPosition === 'function') window.scheduleSantanderMicPosition();
       if (intent) setTimeout(() => window.sendSantanderQuery(intent), 500);
     }
 
@@ -815,6 +816,50 @@
       let isRecording = false;
       let latestTranscript = '';
       let sendWhenRecognitionEnds = false;
+      let autoConversationEnabled = false;
+      let isAgentSpeaking = false;
+      let restartMicTimer = null;
+
+      function positionMicButton() {
+        const wrapper = document.getElementById('chat-wrapper');
+        const inputElement = window.getSantanderChatInput && window.getSantanderChatInput();
+
+        if (!wrapper || wrapper.style.visibility === 'hidden' || !inputElement) {
+          micBtn.style.opacity = '0';
+          micBtn.style.pointerEvents = 'none';
+          return;
+        }
+
+        const rect = inputElement.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+
+        // Keep the mic inside the composer, immediately before the SDK send button.
+        const left = Math.max(8, rect.right - 72);
+        const top = Math.max(8, rect.top + (rect.height - 34) / 2);
+
+        micBtn.style.left = `${Math.round(left)}px`;
+        micBtn.style.top = `${Math.round(top)}px`;
+        micBtn.style.opacity = '1';
+        micBtn.style.pointerEvents = 'auto';
+      }
+
+      function scheduleMicPosition() {
+        requestAnimationFrame(positionMicButton);
+        setTimeout(positionMicButton, 120);
+        setTimeout(positionMicButton, 450);
+      }
+      window.scheduleSantanderMicPosition = scheduleMicPosition;
+
+      function scheduleAutomaticListening(delay = 550) {
+        clearTimeout(restartMicTimer);
+        if (!autoConversationEnabled || isRecording || isAgentSpeaking || awaitingAgentResponse) return;
+
+        restartMicTimer = setTimeout(function () {
+          if (!autoConversationEnabled || isRecording || isAgentSpeaking || awaitingAgentResponse) return;
+          console.log('[Santander] Turno del usuario: reactivando micrófono automáticamente.');
+          startRecording(true);
+        }, delay);
+      }
 
       function updateChatInput(text) {
         const inputElement = window.getSantanderChatInput();
@@ -839,7 +884,11 @@
         }
       }
 
-      function startRecording() {
+      function startRecording(isAutomatic = false) {
+        clearTimeout(restartMicTimer);
+        if (isRecording || isAgentSpeaking || awaitingAgentResponse) return;
+
+        if (!isAutomatic) autoConversationEnabled = true;
         if (window.speechSynthesis) window.speechSynthesis.cancel();
 
         // Do not replay the previous agent answer when the user starts a new turn.
@@ -861,6 +910,7 @@
         recognition.onstart = function () {
           isRecording = true;
           micBtn.classList.add('recording');
+          scheduleMicPosition();
           console.log('[Santander] Micrófono activo en es-AR.');
         };
 
@@ -925,6 +975,7 @@
           }
 
           sendWhenRecognitionEnds = false;
+          scheduleMicPosition();
         };
 
         try {
@@ -937,12 +988,23 @@
       }
 
       micBtn.addEventListener('click', function () {
+        autoConversationEnabled = true;
         if (isRecording) {
           finishRecordingAndSend();
-        } else {
-          startRecording();
+        } else if (!isAgentSpeaking && !awaitingAgentResponse) {
+          startRecording(false);
         }
       });
+
+      window.addEventListener('resize', scheduleMicPosition);
+      window.addEventListener('scroll', scheduleMicPosition, true);
+      document.addEventListener('click', scheduleMicPosition, true);
+      new MutationObserver(scheduleMicPosition).observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true
+      });
+      scheduleMicPosition();
 
       // ---- Text-to-speech for new agent messages ----
       const observedSpeechRoots = new WeakSet();
@@ -1005,9 +1067,10 @@
 
         const utterance = new SpeechSynthesisUtterance(cleanText);
         utterance.lang = 'es-AR';
-        // Natural cadence, slightly brighter and more enthusiastic.
-        utterance.rate = 1.05;
-        utterance.pitch = 1.08;
+        // Keep Tomas close to his native rendering. Large pitch shifts make
+        // Edge's online voice sound metallic or pixelated.
+        utterance.rate = 1.03;
+        utterance.pitch = 1.02;
         utterance.volume = 1;
 
         const voice = getSpanishVoice();
@@ -1018,10 +1081,20 @@
 
         utterance.onstart = function () {
           awaitingAgentResponse = false;
+          isAgentSpeaking = true;
+          micBtn.classList.remove('recording');
           console.log('[Santander][TTS] Reproduciendo respuesta:', cleanText);
         };
+        utterance.onend = function () {
+          isAgentSpeaking = false;
+          console.log('[Santander][TTS] Respuesta finalizada; habilitando turno del usuario.');
+          scheduleMicPosition();
+          scheduleAutomaticListening(650);
+        };
         utterance.onerror = function (event) {
+          isAgentSpeaking = false;
           console.error('[Santander][TTS] Error de reproducción:', event.error);
+          scheduleAutomaticListening(650);
         };
 
         window.speechSynthesis.speak(utterance);
