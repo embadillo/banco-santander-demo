@@ -953,6 +953,8 @@
       let autoConversationEnabled = false;
       let isAgentSpeaking = false;
       let restartMicTimer = null;
+      let recognitionEndedByNoSpeech = false;
+      let noSpeechRetryCount = 0;
 
       const styledMicRoots = new WeakSet();
       const MIC_SIZE = 36;
@@ -1117,6 +1119,12 @@
 
         latestTranscript = '';
         sendWhenRecognitionEnds = false;
+        recognitionEndedByNoSpeech = false;
+
+        // A manual click starts a fresh voice session. Automatic retries keep
+        // their backoff counter until real speech is detected.
+        if (!isAutomatic) noSpeechRetryCount = 0;
+
         updateChatInput('');
 
         const recognition = new SpeechRecognitionCtor();
@@ -1159,6 +1167,11 @@
           latestTranscript = transcript.replace(/\s+/g, ' ').trim();
           updateChatInput(latestTranscript);
 
+          if (latestTranscript) {
+            noSpeechRetryCount = 0;
+            recognitionEndedByNoSpeech = false;
+          }
+
           if (hasFinalResult && latestTranscript) {
             sendWhenRecognitionEnds = true;
             console.log('[Santander] Resultado final detectado; se enviará automáticamente.');
@@ -1170,13 +1183,31 @@
         };
 
         recognition.onerror = function (event) {
-          console.error('[Santander] Error de Web Speech API:', event.error);
-
-          if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-            alert('Permiso de micrófono denegado. Habilitalo desde el candado de la barra de direcciones.');
+          // Edge emits no-speech when the listening window expires without
+          // detecting a voice. In continuous conversation mode this is an
+          // expected idle state, not a critical failure.
+          if (event.error === 'no-speech') {
+            recognitionEndedByNoSpeech = true;
+            sendWhenRecognitionEnds = false;
+            console.info('[Santander] No se detectó habla. Se reintentará la escucha automáticamente.');
+            return;
           }
 
-          if (event.error !== 'no-speech') sendWhenRecognitionEnds = false;
+          // Aborted can occur when recognition is intentionally replaced or
+          // stopped. Do not surface it as a red console error.
+          if (event.error === 'aborted') {
+            sendWhenRecognitionEnds = false;
+            console.info('[Santander] Reconocimiento interrumpido de forma controlada.');
+            return;
+          }
+
+          console.error('[Santander] Error de Web Speech API:', event.error);
+          sendWhenRecognitionEnds = false;
+
+          if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            autoConversationEnabled = false;
+            alert('Permiso de micrófono denegado. Habilitalo desde el candado de la barra de direcciones.');
+          }
         };
 
         recognition.onend = function () {
@@ -1187,14 +1218,25 @@
 
           const textToSend = latestTranscript.trim();
           if (sendWhenRecognitionEnds && textToSend) {
+            noSpeechRetryCount = 0;
             awaitingAgentResponse = true;
             console.log('[Santander] Enviando al agente:', textToSend);
             window.sendSantanderQuery(textToSend);
+          } else if (recognitionEndedByNoSpeech && autoConversationEnabled) {
+            // Keep hands-free mode alive. Use a small progressive backoff so
+            // an idle user does not create a tight restart loop.
+            noSpeechRetryCount += 1;
+            const retryDelay = Math.min(900 + noSpeechRetryCount * 450, 3500);
+            console.info(
+              `[Santander] Micrófono en espera. Nuevo intento en ${retryDelay} ms.`
+            );
+            scheduleAutomaticListening(retryDelay);
           } else if (!textToSend) {
-            console.warn('[Santander] No hubo texto para enviar.');
+            console.info('[Santander] No hubo texto para enviar.');
           }
 
           sendWhenRecognitionEnds = false;
+          recognitionEndedByNoSpeech = false;
           scheduleMicPosition();
         };
 
