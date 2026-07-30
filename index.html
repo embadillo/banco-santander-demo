@@ -631,50 +631,136 @@
       }
     });
 
-    // ---- Native Shadow DOM Query Delivery for SDK v1.16 ----
-    window.sendSantanderQuery = function (text) {
-      const messengerContainer = document.querySelector('chat-messenger-container');
-      if (!messengerContainer || !messengerContainer.shadowRoot) {
-        console.warn('[Santander] Container not ready to process voice input.');
-        return;
+    // ---- Deep Shadow DOM helpers + query delivery for SDK v1.16 ----
+    window.santanderDeepQuery = function santanderDeepQuery(root, selector) {
+      if (!root) return null;
+
+      try {
+        const directMatch = root.querySelector && root.querySelector(selector);
+        if (directMatch) return directMatch;
+
+        const elements = root.querySelectorAll ? root.querySelectorAll('*') : [];
+        for (const element of elements) {
+          if (element.shadowRoot) {
+            const nestedMatch = santanderDeepQuery(element.shadowRoot, selector);
+            if (nestedMatch) return nestedMatch;
+          }
+        }
+      } catch (error) {
+        console.warn('[Santander] Error buscando dentro del Shadow DOM:', error);
       }
 
-      // Traverse deeper nested shadow boundaries of the new Lit-based CES Architecture
-      const composerElement = messengerContainer.shadowRoot.querySelector('chat-messenger-composer');
-      if (!composerElement || !composerElement.shadowRoot) {
-        console.warn('[Santander] Composer shadow boundary not active.');
-        return;
+      return null;
+    };
+
+    window.getSantanderChatInput = function () {
+      const container = document.querySelector('chat-messenger-container');
+      if (!container) {
+        console.warn('[Santander] No se encontró chat-messenger-container.');
+        return null;
       }
 
-      const inputElement = composerElement.shadowRoot.querySelector('input') || 
-                           composerElement.shadowRoot.querySelector('[contenteditable]');
-      const sendButton = composerElement.shadowRoot.querySelector('button.send') || 
-                         composerElement.shadowRoot.querySelector('button[aria-label="Send"]');
+      const searchRoot = container.shadowRoot || container;
+      const composer = window.santanderDeepQuery(searchRoot, 'chat-messenger-composer');
+      const composerRoot = composer ? (composer.shadowRoot || composer) : searchRoot;
 
-      if (inputElement) {
-        // Feed the local browser-side transcript directly into the raw text input
-        inputElement.value = text;
-        
-        // Notify framework core of element mutations
-        inputElement.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
-        inputElement.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+      const input = window.santanderDeepQuery(
+        composerRoot,
+        'textarea, input:not([type="hidden"]):not([type="file"]), [contenteditable="true"], [contenteditable=""]'
+      );
 
-        // Trigger send action (simulate button click, fallback to keyboard event loop)
-        if (sendButton && !sendButton.disabled) {
-          sendButton.click();
+      if (!input) {
+        console.warn('[Santander] No se encontró el campo de texto del composer.');
+      }
+
+      return input;
+    };
+
+    window.setSantanderChatInput = function (inputElement, text) {
+      if (!inputElement) return false;
+
+      inputElement.focus();
+
+      if (inputElement.matches('[contenteditable]')) {
+        inputElement.textContent = text;
+      } else {
+        const prototype = inputElement instanceof HTMLTextAreaElement
+          ? HTMLTextAreaElement.prototype
+          : HTMLInputElement.prototype;
+        const valueSetter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
+
+        if (valueSetter) {
+          valueSetter.call(inputElement, text);
         } else {
-          inputElement.dispatchEvent(new KeyboardEvent('keydown', {
+          inputElement.value = text;
+        }
+      }
+
+      inputElement.dispatchEvent(new InputEvent('input', {
+        bubbles: true,
+        composed: true,
+        inputType: 'insertText',
+        data: text
+      }));
+
+      inputElement.dispatchEvent(new Event('change', {
+        bubbles: true,
+        composed: true
+      }));
+
+      return true;
+    };
+
+    window.sendSantanderQuery = function (text) {
+      const cleanText = String(text || '').trim();
+      if (!cleanText) {
+        console.warn('[Santander] Se intentó enviar un mensaje vacío.');
+        return false;
+      }
+
+      const container = document.querySelector('chat-messenger-container');
+      const inputElement = window.getSantanderChatInput();
+
+      if (!container || !inputElement) {
+        console.error('[Santander] No se pudo resolver el input para enviar el mensaje.');
+        return false;
+      }
+
+      window.setSantanderChatInput(inputElement, cleanText);
+      console.log('[Santander] Texto cargado en el composer:', cleanText);
+
+      // Give Lit / the SDK one render cycle to enable the send control.
+      setTimeout(function () {
+        const searchRoot = container.shadowRoot || container;
+        const composer = window.santanderDeepQuery(searchRoot, 'chat-messenger-composer');
+        const composerRoot = composer ? (composer.shadowRoot || composer) : searchRoot;
+
+        const sendButton = window.santanderDeepQuery(
+          composerRoot,
+          'button.send, button[type="submit"], button[aria-label*="send" i], button[aria-label*="enviar" i], [role="button"][aria-label*="send" i], [role="button"][aria-label*="enviar" i], chat-messenger-send-button'
+        );
+
+        if (sendButton && !sendButton.disabled && sendButton.getAttribute('aria-disabled') !== 'true') {
+          console.log('[Santander] Botón de envío encontrado; ejecutando click.');
+          sendButton.click();
+          return;
+        }
+
+        console.warn('[Santander] Botón de envío no encontrado o deshabilitado; usando Enter.');
+        for (const eventName of ['keydown', 'keypress', 'keyup']) {
+          inputElement.dispatchEvent(new KeyboardEvent(eventName, {
             key: 'Enter',
             code: 'Enter',
             keyCode: 13,
             which: 13,
             bubbles: true,
-            composed: true
+            composed: true,
+            cancelable: true
           }));
         }
-      } else {
-        console.error('[Santander] Text input element unresolved within composer root.');
-      }
+      }, 100);
+
+      return true;
     };
 
     function openSantanderChat(intent) {
@@ -734,24 +820,7 @@
       let shouldSendOnEnd = false;
 
       function getChatInput() {
-        const container = document.querySelector('chat-messenger-container');
-
-        if (!container || !container.shadowRoot) {
-          console.warn('[Santander] No se encontró el shadowRoot del container.');
-          return null;
-        }
-
-        const composer = container.shadowRoot.querySelector('chat-messenger-composer');
-
-        if (!composer || !composer.shadowRoot) {
-          console.warn('[Santander] No se encontró el shadowRoot del composer.');
-          return null;
-        }
-
-        return (
-          composer.shadowRoot.querySelector('input') ||
-          composer.shadowRoot.querySelector('[contenteditable]')
-        );
+        return window.getSantanderChatInput();
       }
 
       function updateChatInput(text) {
@@ -759,30 +828,14 @@
 
         if (!inputElement) {
           console.warn('[Santander] No se pudo actualizar el input del chat.');
-          return;
+          return false;
         }
 
-        if (inputElement.matches('[contenteditable]')) {
-          inputElement.textContent = text;
-        } else {
-          inputElement.value = text;
+        const updated = window.setSantanderChatInput(inputElement, text);
+        if (updated) {
+          console.log('[Santander] Preview actualizado en el composer:', text);
         }
-
-        inputElement.dispatchEvent(
-          new InputEvent('input', {
-            bubbles: true,
-            composed: true,
-            inputType: 'insertText',
-            data: text
-          })
-        );
-
-        inputElement.dispatchEvent(
-          new Event('change', {
-            bubbles: true,
-            composed: true
-          })
-        );
+        return updated;
       }
 
       function startRecording() {
