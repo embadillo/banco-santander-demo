@@ -458,10 +458,7 @@
       transition: transform .18s ease;
     }
     #chat-fab:hover { transform: scale(1.06); }
-    /* Custom mic button — floats on top of the SDK's own input bar. Position is
-       approximate (the SDK's internal layout lives in shadow DOM, so we can't
-       anchor to it precisely); adjust `right` if it doesn't line up with your
-       send button. */
+    /* Custom mic button — floats on top of the SDK's own input bar. */
     #custom-mic-btn {
       position: absolute;
       right: 58px;
@@ -713,51 +710,57 @@
     });
 
     // ---- Custom mic button: local dictation, not native audio-in ----
-    // The channel's Interaction type is set to "Text" in the CX Agent Studio
-    // console, so there's no audio-a-audio pipeline on the backend anymore.
-    // This button transcribes speech locally in the browser (free, no round-trip
-    // to the agent) and sends the result exactly like a typed query — the agent
-    // never knows it came from voice, so it replies with its normal rich
-    // formatting (bullets, tables, widgets) instead of the plain prose used
-    // for TTS output.
-    (function () {
+    // Wait for the DOM to be fully loaded before attaching the event listener
+    document.addEventListener('DOMContentLoaded', function() {
       const micBtn = document.getElementById('custom-mic-btn');
-      if (!micBtn) return;
+      if (!micBtn) {
+        console.warn('[Santander] Custom mic button element not found in the DOM.');
+        return;
+      }
+
       const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRecognitionCtor) {
         micBtn.style.display = 'none';
         console.warn('[Santander] Web Speech API not supported in this browser; hiding mic button.');
         return;
       }
+
       let recognition = null;
       let isRecording = false;
+
       function startRecording() {
         recognition = new SpeechRecognitionCtor();
         recognition.lang = 'es-AR';
         recognition.interimResults = false;
         recognition.continuous = false;
+
         recognition.onresult = function (event) {
           const transcript = event.results[0][0].transcript;
           if (transcript && transcript.trim()) {
             window.sendSantanderQuery(transcript.trim());
           }
         };
+
         recognition.onerror = function (event) {
           console.error('[Santander] Speech recognition error:', event.error);
         };
+
         recognition.onend = function () {
           isRecording = false;
           micBtn.classList.remove('recording');
         };
+
         recognition.start();
         isRecording = true;
         micBtn.classList.add('recording');
       }
+
       function stopRecording() {
         if (recognition) recognition.stop();
         isRecording = false;
         micBtn.classList.remove('recording');
       }
+
       micBtn.addEventListener('click', function () {
         if (isRecording) {
           stopRecording();
@@ -765,7 +768,7 @@
           startRecording();
         }
       });
-    })();
+    });
   </script>
   <div id="chat-wrapper">
     <button id="custom-mic-btn" title="Dictar por voz" aria-label="Dictar por voz">
