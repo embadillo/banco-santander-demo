@@ -795,17 +795,15 @@
       }
     });
 
-    // ---- Custom mic button: local dictation with debugger ----
+    // ---- Voice mode: browser speech-to-text + spoken agent responses ----
     document.addEventListener('DOMContentLoaded', function () {
       const micBtn = document.getElementById('custom-mic-btn');
+      const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
 
       if (!micBtn) {
         console.warn('[Santander] No se encontró el botón custom-mic-btn.');
         return;
       }
-
-      const SpeechRecognitionCtor =
-        window.SpeechRecognition || window.webkitSpeechRecognition;
 
       if (!SpeechRecognitionCtor) {
         micBtn.style.display = 'none';
@@ -814,157 +812,261 @@
       }
 
       window.activeRecognition = null;
-
       let isRecording = false;
-      let finalTranscript = '';
-      let shouldSendOnEnd = false;
-
-      function getChatInput() {
-        return window.getSantanderChatInput();
-      }
+      let latestTranscript = '';
+      let sendWhenRecognitionEnds = false;
 
       function updateChatInput(text) {
-        const inputElement = getChatInput();
-
+        const inputElement = window.getSantanderChatInput();
         if (!inputElement) {
           console.warn('[Santander] No se pudo actualizar el input del chat.');
           return false;
         }
 
         const updated = window.setSantanderChatInput(inputElement, text);
-        if (updated) {
-          console.log('[Santander] Preview actualizado en el composer:', text);
-        }
+        if (updated) console.log('[Santander] Preview actualizado:', text);
         return updated;
       }
 
-      function startRecording() {
-        console.log('[Santander] Inicializando micrófono en es-AR...');
-
-        finalTranscript = '';
-        shouldSendOnEnd = false;
-
-        window.activeRecognition = new SpeechRecognitionCtor();
-        window.activeRecognition.lang = 'es-AR';
-        window.activeRecognition.continuous = true;
-        window.activeRecognition.interimResults = true;
-        window.activeRecognition.maxAlternatives = 1;
-
-        updateChatInput('');
-
-        window.activeRecognition.onstart = function () {
-          console.log('[Santander] El servicio de reconocimiento ha comenzado.');
-        };
-
-        window.activeRecognition.onaudiostart = function () {
-          console.log('[Santander] Captura de audio iniciada.');
-        };
-
-        window.activeRecognition.onsoundstart = function () {
-          console.log('[Santander] Se detectó sonido en el micrófono.');
-        };
-
-        window.activeRecognition.onspeechstart = function () {
-          console.log('[Santander] El navegador comenzó a detectar habla.');
-        };
-
-        window.activeRecognition.onresult = function (event) {
-          console.log(
-            '[Santander] Evento de resultado recibido. Cantidad de fragmentos:',
-            event.results.length
-          );
-
-          let interimTranscript = '';
-
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            const transcript = event.results[i][0].transcript;
-
-            console.log(
-              `[Santander] Fragmento ${i} (${event.results[i].isFinal ? 'Final' : 'Intermedio'}): "${transcript}"`
-            );
-
-            if (event.results[i].isFinal) {
-              finalTranscript += transcript + ' ';
-            } else {
-              interimTranscript += transcript;
-            }
-          }
-
-          const visibleTranscript = finalTranscript + interimTranscript;
-          updateChatInput(visibleTranscript.trim());
-        };
-
-        window.activeRecognition.onnomatch = function () {
-          console.warn('[Santander] Se escuchó audio, pero no se reconocieron palabras.');
-        };
-
-        window.activeRecognition.onerror = function (event) {
-          console.error('[Santander] Error de Web Speech API:', event.error);
-
-          if (
-            event.error === 'not-allowed' ||
-            event.error === 'service-not-allowed'
-          ) {
-            alert(
-              'Permiso de micrófono denegado. Habilitalo desde el candado de la barra de direcciones.'
-            );
-          }
-
-          shouldSendOnEnd = false;
-        };
-
-        window.activeRecognition.onend = function () {
-          console.log('[Santander] El servicio de reconocimiento ha finalizado.');
-
-          isRecording = false;
-          micBtn.classList.remove('recording');
-
-          const textToSend = finalTranscript.trim();
-
-          console.log('[Santander] Transcript final preparado:', textToSend);
-
-          if (shouldSendOnEnd && textToSend) {
-            console.log('[Santander] Enviando transcript al agente...');
-            window.sendSantanderQuery(textToSend);
-          } else if (shouldSendOnEnd) {
-            console.warn('[Santander] No hay texto final para enviar.');
-          }
-
-          shouldSendOnEnd = false;
-          window.activeRecognition = null;
-        };
-
+      function finishRecordingAndSend() {
+        if (!window.activeRecognition) return;
+        sendWhenRecognitionEnds = true;
+        console.log('[Santander] Finalizando reconocimiento para enviar...');
         try {
-          window.activeRecognition.start();
-          isRecording = true;
-          micBtn.classList.add('recording');
-          console.log('[Santander] Solicitud de inicio enviada correctamente.');
+          window.activeRecognition.stop();
         } catch (error) {
-          console.error('[Santander] Error al arrancar el micrófono:', error);
-          isRecording = false;
-          micBtn.classList.remove('recording');
+          console.warn('[Santander] El reconocimiento ya estaba detenido:', error);
         }
       }
 
-      function stopRecording() {
-        if (!window.activeRecognition) {
-          console.warn('[Santander] No existe un reconocimiento activo para detener.');
-          return;
-        }
+      function startRecording() {
+        if (window.speechSynthesis) window.speechSynthesis.cancel();
 
-        console.log('[Santander] Deteniendo micrófono manualmente...');
-        shouldSendOnEnd = true;
-        window.activeRecognition.stop();
+        latestTranscript = '';
+        sendWhenRecognitionEnds = false;
+        updateChatInput('');
+
+        const recognition = new SpeechRecognitionCtor();
+        window.activeRecognition = recognition;
+
+        recognition.lang = 'es-AR';
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = function () {
+          isRecording = true;
+          micBtn.classList.add('recording');
+          console.log('[Santander] Micrófono activo en es-AR.');
+        };
+
+        recognition.onsoundstart = function () {
+          console.log('[Santander] Se detectó sonido.');
+        };
+
+        recognition.onspeechstart = function () {
+          console.log('[Santander] Se detectó habla.');
+        };
+
+        recognition.onresult = function (event) {
+          let transcript = '';
+          let hasFinalResult = false;
+
+          for (let i = 0; i < event.results.length; i++) {
+            const fragment = event.results[i][0].transcript;
+            transcript += fragment + ' ';
+            hasFinalResult = hasFinalResult || event.results[i].isFinal;
+
+            console.log(
+              `[Santander] Fragmento ${i} (${event.results[i].isFinal ? 'Final' : 'Intermedio'}): "${fragment}"`
+            );
+          }
+
+          latestTranscript = transcript.replace(/\s+/g, ' ').trim();
+          updateChatInput(latestTranscript);
+
+          if (hasFinalResult && latestTranscript) {
+            sendWhenRecognitionEnds = true;
+            console.log('[Santander] Resultado final detectado; se enviará automáticamente.');
+          }
+        };
+
+        recognition.onnomatch = function () {
+          console.warn('[Santander] Se escuchó audio, pero no se reconocieron palabras.');
+        };
+
+        recognition.onerror = function (event) {
+          console.error('[Santander] Error de Web Speech API:', event.error);
+
+          if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            alert('Permiso de micrófono denegado. Habilitalo desde el candado de la barra de direcciones.');
+          }
+
+          if (event.error !== 'no-speech') sendWhenRecognitionEnds = false;
+        };
+
+        recognition.onend = function () {
+          console.log('[Santander] Reconocimiento finalizado.');
+          isRecording = false;
+          micBtn.classList.remove('recording');
+          window.activeRecognition = null;
+
+          const textToSend = latestTranscript.trim();
+          if (sendWhenRecognitionEnds && textToSend) {
+            console.log('[Santander] Enviando al agente:', textToSend);
+            window.sendSantanderQuery(textToSend);
+          } else if (!textToSend) {
+            console.warn('[Santander] No hubo texto para enviar.');
+          }
+
+          sendWhenRecognitionEnds = false;
+        };
+
+        try {
+          recognition.start();
+        } catch (error) {
+          console.error('[Santander] Error al iniciar el micrófono:', error);
+          isRecording = false;
+          micBtn.classList.remove('recording');
+        }
       }
 
       micBtn.addEventListener('click', function () {
         if (isRecording) {
-          stopRecording();
+          finishRecordingAndSend();
         } else {
           startRecording();
         }
       });
+
+      // ---- Text-to-speech for new agent messages ----
+      const observedSpeechRoots = new WeakSet();
+      const spokenElements = new WeakMap();
+      let speechScanTimer = null;
+
+      function cleanSpeechText(text) {
+        return String(text || '')
+          .replace(/\s+/g, ' ')
+          .replace(/^[›•]+\s*/, '')
+          .trim();
+      }
+
+      function getSpanishVoice() {
+        const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+        return voices.find(v => /^es-AR$/i.test(v.lang)) ||
+               voices.find(v => /^es(-|$)/i.test(v.lang)) ||
+               null;
+      }
+
+      function speakAgentText(text) {
+        const cleanText = cleanSpeechText(text);
+        if (!cleanText || cleanText.length < 2 || !window.speechSynthesis) return;
+
+        window.speechSynthesis.cancel();
+
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.lang = 'es-AR';
+        utterance.rate = 1;
+        utterance.pitch = 1;
+        utterance.volume = 1;
+
+        const voice = getSpanishVoice();
+        if (voice) utterance.voice = voice;
+
+        utterance.onstart = function () {
+          console.log('[Santander][TTS] Reproduciendo respuesta:', cleanText);
+        };
+        utterance.onerror = function (event) {
+          console.error('[Santander][TTS] Error de reproducción:', event.error);
+        };
+
+        window.speechSynthesis.speak(utterance);
+      }
+
+      function isAgentMessageElement(element) {
+        if (!(element instanceof Element)) return false;
+
+        const signature = [
+          element.tagName,
+          element.className,
+          element.id,
+          element.getAttribute('aria-label'),
+          element.getAttribute('data-author'),
+          element.getAttribute('data-role')
+        ].filter(Boolean).join(' ').toLowerCase();
+
+        const looksLikeAgent = /(bot-message|agent-message|incoming|received|assistant-message|model-message|agent-response|bot-response)/.test(signature);
+        const looksLikeUser = /(user-message|human-message|outgoing|sent|composer|input|quick-action|quick-reply|suggestion|chip)/.test(signature);
+
+        return looksLikeAgent && !looksLikeUser;
+      }
+
+      function scanRootForAgentMessages(root) {
+        if (!root || !root.querySelectorAll) return;
+
+        const candidates = root.querySelectorAll(
+          '[class*="bot-message" i], [class*="agent-message" i], [class*="incoming" i], ' +
+          '[class*="received" i], [class*="assistant-message" i], [class*="agent-response" i], ' +
+          '[data-author="bot" i], [data-author="agent" i], [data-role="assistant" i]'
+        );
+
+        candidates.forEach(function (element) {
+          if (!isAgentMessageElement(element)) return;
+
+          const text = cleanSpeechText(element.innerText || element.textContent);
+          if (!text || text.length > 1500) return;
+
+          const previousText = spokenElements.get(element);
+          if (previousText === text) return;
+
+          // Wait until streaming/rendering settles. The latest text replaces any partial version.
+          spokenElements.set(element, text);
+          clearTimeout(element.__santanderSpeechTimer);
+          element.__santanderSpeechTimer = setTimeout(function () {
+            if (spokenElements.get(element) === text) speakAgentText(text);
+          }, 700);
+        });
+
+        root.querySelectorAll('*').forEach(function (element) {
+          if (element.shadowRoot) observeSpeechRoot(element.shadowRoot);
+        });
+      }
+
+      function scheduleSpeechScan() {
+        clearTimeout(speechScanTimer);
+        speechScanTimer = setTimeout(function () {
+          scanRootForAgentMessages(document);
+        }, 150);
+      }
+
+      function observeSpeechRoot(root) {
+        if (!root || observedSpeechRoots.has(root)) return;
+        observedSpeechRoots.add(root);
+
+        scanRootForAgentMessages(root);
+
+        new MutationObserver(function () {
+          scanRootForAgentMessages(root);
+          scheduleSpeechScan();
+        }).observe(root, {
+          childList: true,
+          subtree: true,
+          characterData: true
+        });
+      }
+
+      observeSpeechRoot(document);
+
+      if (window.speechSynthesis) {
+        window.speechSynthesis.getVoices();
+        window.speechSynthesis.onvoiceschanged = function () {
+          console.log('[Santander][TTS] Voces disponibles:', window.speechSynthesis.getVoices().map(v => `${v.name} (${v.lang})`));
+        };
+      } else {
+        console.warn('[Santander][TTS] SpeechSynthesis no está disponible.');
+      }
     });
+
   </script>
   <div id="chat-wrapper">
     <button id="custom-mic-btn" title="Dictar por voz" aria-label="Dictar por voz">
