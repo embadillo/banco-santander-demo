@@ -710,53 +710,103 @@
     });
 
     // ---- Custom mic button: local dictation, not native audio-in ----
-    // Wait for the DOM to be fully loaded before attaching the event listener
     document.addEventListener('DOMContentLoaded', function() {
       const micBtn = document.getElementById('custom-mic-btn');
-      if (!micBtn) {
-        console.warn('[Santander] Custom mic button element not found in the DOM.');
-        return;
-      }
+      if (!micBtn) return;
 
       const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRecognitionCtor) {
         micBtn.style.display = 'none';
-        console.warn('[Santander] Web Speech API not supported in this browser; hiding mic button.');
+        console.warn('[Santander] Web Speech API no está soportada en este navegador.');
         return;
       }
 
-      let recognition = null;
+      window.activeRecognition = null;
       let isRecording = false;
 
-      function startRecording() {
-        recognition = new SpeechRecognitionCtor();
-        recognition.lang = 'es-AR';
-        recognition.interimResults = false;
-        recognition.continuous = false;
+      function getChatInput() {
+        const container = document.querySelector('chat-messenger-container');
+        if (!container || !container.shadowRoot) return null;
+        const composer = container.shadowRoot.querySelector('chat-messenger-composer');
+        if (!composer || !composer.shadowRoot) return null;
+        return composer.shadowRoot.querySelector('input') || composer.shadowRoot.querySelector('[contenteditable]');
+      }
 
-        recognition.onresult = function (event) {
-          const transcript = event.results[0][0].transcript;
-          if (transcript && transcript.trim()) {
-            window.sendSantanderQuery(transcript.trim());
+      function startRecording() {
+        console.log('[Santander] Inicializando micrófono en es-AR...');
+        window.activeRecognition = new SpeechRecognitionCtor();
+        
+        window.activeRecognition.lang = 'es-AR';
+        window.activeRecognition.continuous = true;      
+        window.activeRecognition.interimResults = true;  
+        window.activeRecognition.maxAlternatives = 1;
+
+        const inputElement = getChatInput();
+        if (inputElement) {
+          inputElement.value = '';
+          inputElement.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+        }
+
+        // --- Eventos de diagnóstico ---
+        window.activeRecognition.onstart = function() {
+          console.log('[Santander] El servicio de reconocimiento ha comenzado (Hardware activo).');
+        };
+
+        window.activeRecognition.onsoundstart = function() {
+          console.log('[Santander] Se ha detectado sonido en el micrófono.');
+        };
+
+        window.activeRecognition.onspeechstart = function() {
+          console.log('[Santander] El navegador ha empezado a detectar habla.');
+        };
+
+        window.activeRecognition.onresult = function (event) {
+          console.log('[Santander] Evento de resultado recibido. Cantidad de fragmentos:', event.results.length);
+          let transcript = '';
+          for (let i = 0; i < event.results.length; ++i) {
+            transcript += event.results[i][0].transcript;
+            console.log(`[Santander] Fragmento ${i} (${event.results[i].isFinal ? 'Final' : 'Intermedio'}): "${event.results[i][0].transcript}"`);
+          }
+          
+          if (inputElement) {
+            inputElement.value = transcript;
+            inputElement.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+            inputElement.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
           }
         };
 
-        recognition.onerror = function (event) {
-          console.error('[Santander] Speech recognition error:', event.error);
+        window.activeRecognition.onnomatch = function() {
+          console.warn('[Santander] Se escuchó audio pero no se pudo reconocer ninguna palabra.');
         };
 
-        recognition.onend = function () {
+        window.activeRecognition.onerror = function (event) {
+          console.error('[Santander] Error crítico de Web Speech API:', event.error);
+          if (event.error === 'not-allowed') {
+            alert('Permiso de micrófono denegado. Por favor, habilitalo en el candado de la barra de direcciones de Chrome.');
+            stopRecording();
+          }
+        };
+
+        window.activeRecognition.onend = function () {
+          console.log('[Santander] El servicio de reconocimiento ha finalizado.');
           isRecording = false;
           micBtn.classList.remove('recording');
         };
 
-        recognition.start();
-        isRecording = true;
-        micBtn.classList.add('recording');
+        try {
+          window.activeRecognition.start();
+          isRecording = true;
+          micBtn.classList.add('recording');
+        } catch (e) {
+          console.error('[Santander] Error al arrancar el micrófono:', e);
+        }
       }
 
       function stopRecording() {
-        if (recognition) recognition.stop();
+        if (window.activeRecognition) {
+          console.log('[Santander] Deteniendo micrófono manualmente...');
+          window.activeRecognition.stop();
+        }
         isRecording = false;
         micBtn.classList.remove('recording');
       }
