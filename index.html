@@ -842,6 +842,10 @@
       function startRecording() {
         if (window.speechSynthesis) window.speechSynthesis.cancel();
 
+        // Do not replay the previous agent answer when the user starts a new turn.
+        awaitingAgentResponse = false;
+        scanRootForAgentMessages(document);
+
         latestTranscript = '';
         sendWhenRecognitionEnds = false;
         updateChatInput('');
@@ -913,6 +917,7 @@
 
           const textToSend = latestTranscript.trim();
           if (sendWhenRecognitionEnds && textToSend) {
+            awaitingAgentResponse = true;
             console.log('[Santander] Enviando al agente:', textToSend);
             window.sendSantanderQuery(textToSend);
           } else if (!textToSend) {
@@ -942,38 +947,77 @@
       // ---- Text-to-speech for new agent messages ----
       const observedSpeechRoots = new WeakSet();
       const spokenElements = new WeakMap();
+      const spokenTextHistory = new Set();
       let speechScanTimer = null;
+      let speechObserverReady = false;
+      let awaitingAgentResponse = false;
+
+      // Prefer the male Argentine voice exposed by Microsoft Edge.
+      const preferredMaleVoiceNames = [
+        'Microsoft Tomas Online (Natural) - Spanish (Argentina)',
+        'Microsoft Tomas Online',
+        'Tomas'
+      ];
 
       function cleanSpeechText(text) {
         return String(text || '')
+          // Remove Markdown formatting before sending text to TTS.
+          .replace(/\*\*(.*?)\*\*/g, '$1')
+          .replace(/__(.*?)__/g, '$1')
+          .replace(/`([^`]+)`/g, '$1')
+          .replace(/^#{1,6}\s*/gm, '')
+          // Remove emojis, pictographs, flags, variation selectors, keycaps and joiners.
+          .replace(/[\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0E\uFE0F\u200D\u20E3]/gu, '')
+          // Turn line breaks into natural pauses for TTS.
+          .replace(/\n{2,}/g, '. ')
+          .replace(/\n/g, ', ')
           .replace(/\s+/g, ' ')
-          .replace(/^[›•]+\s*/, '')
+          .replace(/^[›•-]+\s*/, '')
           .trim();
       }
 
       function getSpanishVoice() {
         const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
-        return voices.find(v => /^es-AR$/i.test(v.lang)) ||
-               voices.find(v => /^es(-|$)/i.test(v.lang)) ||
-               null;
+
+        return (
+          voices.find(v => v.name === 'Microsoft Tomas Online (Natural) - Spanish (Argentina)') ||
+          voices.find(v => v.name.toLowerCase().includes('microsoft tomas online')) ||
+          voices.find(v => /^es-AR$/i.test(v.lang) && v.name.toLowerCase().includes('tomas')) ||
+          voices.find(v => /^es-AR$/i.test(v.lang)) ||
+          voices.find(v => /^es(-|$)/i.test(v.lang)) ||
+          null
+        );
       }
 
       function speakAgentText(text) {
         const cleanText = cleanSpeechText(text);
+        const speechKey = cleanText.toLowerCase();
         if (!cleanText || cleanText.length < 2 || !window.speechSynthesis) return;
+
+        // Prevent an old agent response from being spoken again after DOM re-rendering.
+        if (spokenTextHistory.has(speechKey)) {
+          console.log('[Santander][TTS] Respuesta ya reproducida; se omite:', cleanText);
+          return;
+        }
+        spokenTextHistory.add(speechKey);
 
         window.speechSynthesis.cancel();
 
         const utterance = new SpeechSynthesisUtterance(cleanText);
         utterance.lang = 'es-AR';
-        utterance.rate = 1;
-        utterance.pitch = 1;
+        // Natural cadence, slightly brighter and more enthusiastic.
+        utterance.rate = 1.05;
+        utterance.pitch = 1.08;
         utterance.volume = 1;
 
         const voice = getSpanishVoice();
-        if (voice) utterance.voice = voice;
+        if (voice) {
+          utterance.voice = voice;
+          console.log('[Santander][TTS] Voz seleccionada:', voice.name, voice.lang);
+        }
 
         utterance.onstart = function () {
+          awaitingAgentResponse = false;
           console.log('[Santander][TTS] Reproduciendo respuesta:', cleanText);
         };
         utterance.onerror = function (event) {
@@ -1019,12 +1063,27 @@
           const previousText = spokenElements.get(element);
           if (previousText === text) return;
 
+          const speechKey = text.toLowerCase();
+
+          // During initial scan or while no new agent turn is expected, catalog silently.
+          if (!speechObserverReady || !awaitingAgentResponse) {
+            spokenElements.set(element, text);
+            spokenTextHistory.add(speechKey);
+            return;
+          }
+
+          // A DOM re-render can create a new element for an old message.
+          if (spokenTextHistory.has(speechKey)) {
+            spokenElements.set(element, text);
+            return;
+          }
+
           // Wait until streaming/rendering settles. The latest text replaces any partial version.
           spokenElements.set(element, text);
           clearTimeout(element.__santanderSpeechTimer);
           element.__santanderSpeechTimer = setTimeout(function () {
             if (spokenElements.get(element) === text) speakAgentText(text);
-          }, 700);
+          }, 1100);
         });
 
         root.querySelectorAll('*').forEach(function (element) {
@@ -1056,6 +1115,12 @@
       }
 
       observeSpeechRoot(document);
+
+      // Give the observer one initial pass to catalog existing messages silently.
+      setTimeout(function () {
+        speechObserverReady = true;
+        console.log('[Santander][TTS] Observador listo para leer nuevas respuestas.');
+      }, 1200);
 
       if (window.speechSynthesis) {
         window.speechSynthesis.getVoices();
