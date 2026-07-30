@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Santander Select | Asistente Virtual</title>
-
   <script>
     // ---- Quick actions: single-box layout (patch runs before chat-messenger.js) ----
     // MutationObserver never crosses shadow boundaries, even with subtree:true — it only
@@ -20,7 +19,6 @@
       const QUICK_ACTIONS_STYLE_MARK = 'data-santander-quick-actions';
       const observedRoots = new WeakSet();
       const styledRoots = new WeakSet();
-
       function injectInto(root) {
         if (styledRoots.has(root)) return;
         styledRoots.add(root);
@@ -50,7 +48,6 @@
         ].join('\n');
         root.appendChild(style);
       }
-
       function scanRoot(root) {
         root.querySelectorAll('.quick-actions').forEach(function (qa) {
           injectInto(qa.getRootNode());
@@ -59,7 +56,6 @@
           if (el.shadowRoot) observeRoot(el.shadowRoot);
         });
       }
-
       function observeRoot(root) {
         if (observedRoots.has(root)) return;
         observedRoots.add(root);
@@ -69,29 +65,23 @@
           subtree: true
         });
       }
-
       const originalAttachShadow = Element.prototype.attachShadow;
       Element.prototype.attachShadow = function (init) {
         const shadow = originalAttachShadow.call(this, init);
         observeRoot(shadow);
         return shadow;
       };
-
       // Cover any shadow roots that might already exist (defensive; normally none yet).
       document.addEventListener('DOMContentLoaded', function () { scanRoot(document); });
     })();
   </script>
-
   <script defer src="https://www.gstatic.com/chat-messenger/sdk/prod/v1.16/chat-messenger.js"></script>
   <link rel="stylesheet" href="https://www.gstatic.com/chat-messenger/sdk/prod/v1.16/themes/chat-messenger-default.css">
   <link rel="stylesheet" href="https://www.gstatic.com/chat-messenger/sdk/prod/v1.16/themes/chat-messenger-layout.css">
-
   <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
-
     * { box-sizing: border-box; }
     html, body { margin: 0; min-height: 100%; }
-
     :root {
       --santander-red: #ec0000;
       --santander-red-dark: #c80000;
@@ -101,18 +91,15 @@
       --soft: #f5f6f7;
       --white: #ffffff;
     }
-
     body {
       font-family: 'DM Sans', Arial, sans-serif;
       color: var(--ink);
       background: var(--white);
       overflow-x: hidden;
     }
-
     button, input { font: inherit; }
     button { cursor: pointer; }
     a { color: inherit; text-decoration: none; }
-
     /* HEADER */
     .topbar {
       height: 100px;
@@ -128,16 +115,13 @@
       top: 0;
       z-index: 100;
     }
-
     .topbar-left,
     .topbar-right {
       display: flex;
       align-items: center;
       gap: 18px;
     }
-
     .topbar-right { justify-content: flex-end; }
-
     .pill {
       height: 58px;
       border: 1px solid #cfcfcf;
@@ -151,26 +135,22 @@
       font-size: 18px;
       color: #222;
     }
-
     .menu-pill {
       min-width: 152px;
       justify-content: flex-start;
     }
-
     .hamburger {
       width: 28px;
       display: flex;
       flex-direction: column;
       gap: 5px;
     }
-
     .hamburger span {
       height: 3px;
       width: 28px;
       background: var(--santander-red);
       border-radius: 2px;
     }
-
     .brand {
       display: flex;
       align-items: center;
@@ -180,16 +160,13 @@
       color: var(--santander-red);
       white-space: nowrap;
     }
-
     .brand svg { width: 34px; height: 40px; flex: 0 0 auto; }
     .brand strong { font-weight: 700; }
     .brand span { font-weight: 300; }
-
     .avatar-pill {
       padding-left: 12px;
       padding-right: 18px;
     }
-
     .avatar-mark {
       width: 38px;
       height: 38px;
@@ -203,7 +180,6 @@
       font-style: italic;
       padding-right: 11px;
     }
-
     .icon-btn {
       width: 42px;
       height: 42px;
@@ -215,7 +191,6 @@
       color: #444;
       position: relative;
     }
-
     .notification {
       position: absolute;
       top: 0;
@@ -232,7 +207,6 @@
       justify-content: center;
       border: 2px solid #fff;
     }
-
     /* SEARCH */
     .search-strip {
       min-height: 126px;
@@ -243,7 +217,6 @@
       padding: 20px;
       border-bottom: 1px solid #ececec;
     }
-
     .search-box {
       width: min(780px, calc(100vw - 48px));
       height: 62px;
@@ -253,9 +226,7 @@
       color: #777;
       font-size: 24px;
     }
-
     .search-box svg { color: #2388ad; flex: 0 0 auto; }
-
     /* HERO */
     .hero {
       display: grid;
@@ -269,7 +240,6 @@
       border-bottom: 1px solid #ececec;
       position: relative;
     }
-
     .hero::before {
       content: '';
       position: absolute;
@@ -279,14 +249,12 @@
       width: 7px;
       background: var(--santander-red);
     }
-
     .hero-copy {
       padding: 72px 7%;
       display: flex;
       flex-direction: column;
       justify-content: center;
     }
-
     .eyebrow {
       display: inline-flex;
       width: fit-content;
@@ -299,14 +267,12 @@
       margin-bottom: 18px;
       color: #b40000;
     }
-
     .hero h1 {
       font-size: clamp(36px, 4.5vw, 62px);
       line-height: 1.05;
       margin: 0 0 18px;
       letter-spacing: -1.8px;
     }
-
     .hero p {
       max-width: 650px;
       font-size: 18px;
@@ -314,9 +280,7 @@
       margin: 0 0 30px;
       color: #5f5f5f;
     }
-
     .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; }
-
     .hero-btn {
       border: 0;
       border-radius: 6px;
@@ -326,13 +290,11 @@
       color: #fff;
       box-shadow: 0 8px 18px rgba(236,0,0,.18);
     }
-
     .hero-btn.secondary {
       background: #fff;
       color: #9d0000;
       border: 1px solid #e6bcbc;
     }
-
     .hero-visual {
       position: relative;
       display: flex;
@@ -340,7 +302,6 @@
       justify-content: center;
       background: radial-gradient(circle at center, rgba(236,0,0,.08), transparent 62%);
     }
-
     .hero-card {
       width: min(360px, 80%);
       aspect-ratio: 1.58;
@@ -352,7 +313,6 @@
       position: relative;
       overflow: hidden;
     }
-
     .hero-card::after {
       content: '';
       position: absolute;
@@ -363,11 +323,9 @@
       right: -85px;
       top: -80px;
     }
-
     .hero-card-title { font-size: 24px; font-weight: 700; position: relative; z-index: 1; }
     .hero-card-sub { margin-top: 10px; color: rgba(255,255,255,.7); position: relative; z-index: 1; }
     .hero-card-number { position: absolute; bottom: 28px; left: 28px; letter-spacing: 4px; z-index: 1; }
-
     /* QUICK ACTIONS */
     .quick-section { padding: 54px 7% 70px; }
     .section-title {
@@ -377,13 +335,11 @@
       letter-spacing: 1.4px;
       margin-bottom: 24px;
     }
-
     .quick-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 16px;
     }
-
     .quick-card {
       min-height: 160px;
       border: 1px solid #ddd;
@@ -392,17 +348,14 @@
       background: #fff;
       transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
     }
-
     .quick-card:hover {
       transform: translateY(-3px);
       border-color: #f4aaaa;
       box-shadow: 0 12px 28px rgba(0,0,0,.08);
     }
-
     .quick-icon { font-size: 28px; margin-bottom: 16px; }
     .quick-card h3 { margin: 0 0 8px; font-size: 17px; }
     .quick-card p { margin: 0; color: #747474; line-height: 1.5; font-size: 14px; }
-
     footer {
       border-top: 1px solid #e2e2e2;
       background: #fafafa;
@@ -413,7 +366,6 @@
       color: #777;
       font-size: 12px;
     }
-
     /* CHAT: wrapper controls positioning; SDK controls its own internal layout */
     #chat-wrapper {
       visibility: hidden;
@@ -425,37 +377,31 @@
       height: min(640px, calc(100vh - 48px));
       z-index: 9999;
     }
-
     chat-messenger {
       display: block !important;
       width: 400px !important;
       max-width: 400px !important;
       height: 100% !important;
       min-height: 0 !important;
-
       /* Containers / Surfaces */
       --chat-messenger-color--surface: #fffafa;
       --chat-messenger-color--surface-container: #ffffff;
       --chat-messenger-color--surface-container-high: #fff2f2;
-
       /* Brand / Accent */
       --chat-messenger-color--primary: #ec0000;
       --chat-messenger-color--primary-container: #fff0f0;
       --chat-messenger-color--secondary: #ffe5e5;
-
       /* Text & Icons */
       --chat-messenger-color--on-surface: #242424;
       --chat-messenger-color--on-surface-variant: #6f6f6f;
       --chat-messenger-color--on-primary: #ffffff;
       --chat-messenger-color--on-primary-container: #8f0000;
       --chat-messenger-color--on-secondary: #8f0000;
-
       /* States: bumped opacity from the 8% default so hover reads as red, not gray */
       --chat-messenger-color--state-layer-on-surface: rgba(236,0,0,.16);
       --chat-messenger-color--state-layer-on-primary: rgba(255,255,255,.12);
       --chat-messenger-color--state-layer-on-secondary: rgba(236,0,0,.16);
       --chat-messenger-color--state-on-surface-mute: rgba(68,71,70,.38);
-
       /* Utility */
       --chat-messenger-color--outline: #ded4d4;
       --chat-messenger-color--outline-variant: rgba(236,0,0,.14);
@@ -464,9 +410,7 @@
       --chat-messenger-color--error-container: #f9dedc;
       --chat-messenger-color--on-error-container: #8c1d18;
       --chat-messenger-color--link: #c80000;
-
       --chat-messenger-font-family: 'DM Sans', Arial, sans-serif;
-
       /* Quick actions render as <md-outlined-button> (Material Web). --md-sys-color-primary
          drives both label text AND hover/focus state-layer color inside that component's
          own shadow root, and chat-messenger falls it back to --on-surface (gray) unless we
@@ -480,7 +424,6 @@
       --md-outlined-button-pressed-state-layer-color: #ec0000;
       --md-outlined-button-pressed-state-layer-opacity: 0.16;
       --chat-messenger-color--action-button-outline-color: rgba(236,0,0,.22);
-
       /* Shape: corner-value-large is the documented token for carousel/quick-action cards */
       --chat-messenger-shape--corner-value-small: 8px;
       --chat-messenger-shape--corner-value-medium: 16px;
@@ -489,21 +432,18 @@
       --chat-messenger-shape--corner-fully-rounded: 100px;
       --chat-messenger-elevation: 0 14px 38px rgba(0,0,0,.16), 0 3px 12px rgba(236,0,0,.14);
     }
-
     chat-messenger-container {
       display: flex !important;
       flex-direction: column !important;
       height: 100% !important;
       min-height: 0 !important;
     }
-
     #fab-wrapper {
       position: fixed;
       right: 28px;
       bottom: 28px;
       z-index: 10000;
     }
-
     #chat-fab {
       width: 66px;
       height: 66px;
@@ -517,9 +457,7 @@
       justify-content: center;
       transition: transform .18s ease;
     }
-
     #chat-fab:hover { transform: scale(1.06); }
-
     /* Custom mic button — floats on top of the SDK's own input bar. Position is
        approximate (the SDK's internal layout lives in shadow DOM, so we can't
        anchor to it precisely); adjust `right` if it doesn't line up with your
@@ -541,24 +479,20 @@
       cursor: pointer;
       transition: background .15s ease, border-color .15s ease, color .15s ease;
     }
-
     #custom-mic-btn:hover {
       border-color: #ec0000;
       color: #ec0000;
     }
-
     #custom-mic-btn.recording {
       background: #ec0000;
       border-color: #ec0000;
       color: #ffffff;
       animation: micPulse 1.1s ease-in-out infinite;
     }
-
     @keyframes micPulse {
       0%, 100% { box-shadow: 0 0 0 0 rgba(236,0,0,.35); }
       50% { box-shadow: 0 0 0 8px rgba(236,0,0,0); }
     }
-
     @media (max-width: 1100px) {
       .topbar { grid-template-columns: auto 1fr auto; }
       .brand { font-size: 25px; }
@@ -567,7 +501,6 @@
       .hero-visual { display: none; }
       .quick-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
     }
-
     @media (max-width: 620px) {
       .topbar { height: 72px; padding: 0 14px; gap: 10px; }
       .menu-pill { min-width: 0; width: 48px; height: 48px; padding: 0; }
@@ -581,25 +514,21 @@
       .quick-section { padding: 40px 20px 56px; }
       .quick-grid { grid-template-columns: 1fr; }
       footer { flex-direction: column; }
-
       #chat-wrapper {
         right: 12px;
         bottom: 12px;
         width: calc(100vw - 24px);
         height: min(680px, calc(100dvh - 24px));
       }
-
       chat-messenger {
         width: 100% !important;
         max-width: 100% !important;
       }
-
       #fab-wrapper { right: 18px; bottom: 18px; }
     }
   </style>
 </head>
 <body>
-
   <header class="topbar">
     <div class="topbar-left">
       <button class="pill menu-pill" aria-label="Abrir menú">
@@ -607,14 +536,12 @@
         <span class="menu-label">Menú</span>
       </button>
     </div>
-
     <a href="#" class="brand" aria-label="Santander Select">
       <svg viewBox="0 0 40 52" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <path d="M20 0C20 0 6 12 6 26C6 34.284 12.716 41 21 41C29.284 41 36 34.284 36 26C36 20 32 15 32 15C32 15 30 22 24 24C24 24 28 18 20 10C20 10 16 18 16 26C16 26 13 23 14 17C14 17 10 20 10 26C10 32 14.686 36 21 36C27.314 36 32 31.314 32 25C32 22 30 19.5 30 19.5C30 19.5 28 24 23 25C23 25 26 20 20 0Z" fill="#EC0000"/>
       </svg>
       <strong>Santander</strong> <span>Select</span>
     </a>
-
     <div class="topbar-right">
       <button class="pill">Centro de ayuda</button>
       <button class="pill avatar-pill">
@@ -634,14 +561,12 @@
       </button>
     </div>
   </header>
-
   <section class="search-strip">
     <div class="search-box">
       <svg width="31" height="31" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
       <span>Buscar operaciones, productos, secciones y consultas</span>
     </div>
   </section>
-
   <main>
     <section class="hero">
       <div class="hero-copy">
@@ -661,7 +586,6 @@
         </div>
       </div>
     </section>
-
     <section class="quick-section">
       <div class="section-title">ACCESOS RÁPIDOS</div>
       <div class="quick-grid">
@@ -688,12 +612,10 @@
       </div>
     </section>
   </main>
-
   <footer>
     <span>© 2026 Banco Santander. Demo de experiencia conversacional.</span>
     <span>Asistente impulsado por Google Cloud</span>
   </footer>
-
   <script>
     window.addEventListener('chat-messenger-loaded', function () {
       try {
@@ -712,14 +634,49 @@
       }
     });
 
+    // ---- Native Shadow DOM Query Delivery for SDK v1.16 ----
     window.sendSantanderQuery = function (text) {
-      const messenger = document.querySelector('chat-messenger');
-      if (!messenger || !text) return;
+      const messengerContainer = document.querySelector('chat-messenger-container');
+      if (!messengerContainer || !messengerContainer.shadowRoot) {
+        console.warn('[Santander] Container not ready to process voice input.');
+        return;
+      }
 
-      if (typeof messenger.sendRequest === 'function') {
-        messenger.sendRequest('query', text);
-      } else if (typeof messenger.sendQuery === 'function') {
-        messenger.sendQuery(text);
+      // Traverse deeper nested shadow boundaries of the new Lit-based CES Architecture
+      const composerElement = messengerContainer.shadowRoot.querySelector('chat-messenger-composer');
+      if (!composerElement || !composerElement.shadowRoot) {
+        console.warn('[Santander] Composer shadow boundary not active.');
+        return;
+      }
+
+      const inputElement = composerElement.shadowRoot.querySelector('input') || 
+                           composerElement.shadowRoot.querySelector('[contenteditable]');
+      const sendButton = composerElement.shadowRoot.querySelector('button.send') || 
+                         composerElement.shadowRoot.querySelector('button[aria-label="Send"]');
+
+      if (inputElement) {
+        // Feed the local browser-side transcript directly into the raw text input
+        inputElement.value = text;
+        
+        // Notify framework core of element mutations
+        inputElement.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+        inputElement.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+
+        // Trigger send action (simulate button click, fallback to keyboard event loop)
+        if (sendButton && !sendButton.disabled) {
+          sendButton.click();
+        } else {
+          inputElement.dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'Enter',
+            code: 'Enter',
+            keyCode: 13,
+            which: 13,
+            bubbles: true,
+            composed: true
+          }));
+        }
+      } else {
+        console.error('[Santander] Text input element unresolved within composer root.');
       }
     };
 
@@ -727,11 +684,9 @@
       const wrapper = document.getElementById('chat-wrapper');
       const fabWrapper = document.getElementById('fab-wrapper');
       const container = document.querySelector('chat-messenger-container');
-
       wrapper.style.visibility = 'visible';
       wrapper.style.pointerEvents = 'auto';
       fabWrapper.style.display = 'none';
-
       if (container) container.setAttribute('window-opened', '');
       if (intent) setTimeout(() => window.sendSantanderQuery(intent), 500);
     }
@@ -747,11 +702,9 @@
     window.addEventListener('chat-messenger-loaded', function () {
       const messenger = document.querySelector('chat-messenger');
       const container = document.querySelector('chat-messenger-container');
-
       if (messenger) {
         messenger.addEventListener('chat-messenger-close', closeSantanderChat);
       }
-
       if (container) {
         new MutationObserver(function () {
           if (!container.hasAttribute('window-opened')) closeSantanderChat();
@@ -770,50 +723,41 @@
     (function () {
       const micBtn = document.getElementById('custom-mic-btn');
       if (!micBtn) return;
-
       const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRecognitionCtor) {
         micBtn.style.display = 'none';
         console.warn('[Santander] Web Speech API not supported in this browser; hiding mic button.');
         return;
       }
-
       let recognition = null;
       let isRecording = false;
-
       function startRecording() {
         recognition = new SpeechRecognitionCtor();
         recognition.lang = 'es-AR';
         recognition.interimResults = false;
         recognition.continuous = false;
-
         recognition.onresult = function (event) {
           const transcript = event.results[0][0].transcript;
           if (transcript && transcript.trim()) {
             window.sendSantanderQuery(transcript.trim());
           }
         };
-
         recognition.onerror = function (event) {
           console.error('[Santander] Speech recognition error:', event.error);
         };
-
         recognition.onend = function () {
           isRecording = false;
           micBtn.classList.remove('recording');
         };
-
         recognition.start();
         isRecording = true;
         micBtn.classList.add('recording');
       }
-
       function stopRecording() {
         if (recognition) recognition.stop();
         isRecording = false;
         micBtn.classList.remove('recording');
       }
-
       micBtn.addEventListener('click', function () {
         if (isRecording) {
           stopRecording();
@@ -822,9 +766,7 @@
         }
       });
     })();
-
   </script>
-
   <div id="chat-wrapper">
     <button id="custom-mic-btn" title="Dictar por voz" aria-label="Dictar por voz">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -834,7 +776,6 @@
         <line x1="8" y1="23" x2="16" y2="23"/>
       </svg>
     </button>
-
     <chat-messenger url-allowlist="*" language-code="es" max-query-length="-1">
       <chat-messenger-container
         chat-title="Banco Santander"
@@ -843,27 +784,23 @@
         enable-file-upload
         custom-css="
           * { font-family: 'DM Sans', Arial, sans-serif !important; box-sizing: border-box !important; }
-
           main, [class*='chat-body'], [class*='message-list'], [class*='messages'], [class*='conversation'] {
             background:
               radial-gradient(circle at 100% 0%, rgba(236,0,0,.035), transparent 34%),
               linear-gradient(180deg, #ffffff 0%, #fffafa 100%) !important;
             padding: 16px !important;
           }
-
           header, [class*='header'], [class*='title-bar'], [class*='toolbar'] {
             background: linear-gradient(180deg, #ffffff 0%, #fffdfd 100%) !important;
             border-bottom: 1px solid #eadede !important;
             box-shadow: inset 0 -3px 0 #ec0000 !important;
             padding: 13px 15px !important;
           }
-
           [class*='chat-title'], [class*='title'] {
             color: #1a1a1a !important;
             font-size: 15px !important;
             font-weight: 700 !important;
           }
-
           [class*='user-message'], [class*='human-message'], [class*='outgoing'], [class*='sent'] {
             background: #ffe8e8 !important;
             color: #8f0000 !important;
@@ -873,7 +810,6 @@
             box-shadow: 0 1px 2px rgba(126,0,0,.04) !important;
           }
           [class*='user-message'] *, [class*='human-message'] *, [class*='outgoing'] * { color: #8f0000 !important; }
-
           /* Bot bubble: was transparent (blended into the background) — now a real card
              so messages read distinctly instead of floating text on a gray field */
           [class*='bot-message'], [class*='agent-message'], [class*='incoming'], [class*='received'] {
@@ -889,9 +825,7 @@
             max-width: 96% !important;
             line-height: 1.55 !important;
           }
-
           /* ===== QUICK ACTIONS: single box, four rows, dividers instead of separate cards ===== */
-
           [class*='chip-list'], [class*='suggestion-list'], [class*='quick-actions'], [class*='actions-container'] {
             display: flex !important;
             flex-direction: column !important;
@@ -904,7 +838,6 @@
             box-shadow: var(--chat-messenger-elevation, 0 14px 38px rgba(0,0,0,.16), 0 3px 12px rgba(236,0,0,.14)) !important;
             overflow: hidden !important;
           }
-
           [class*='chip'], [class*='suggestion'], [class*='quick-action'], [class*='quick-reply'], [class*='action-item'] {
             position: relative !important;
             background: transparent !important;
@@ -920,12 +853,10 @@
             transform: none !important;
             transition: background .15s ease, color .15s ease !important;
           }
-
           [class*='chip']:last-child, [class*='suggestion']:last-child,
           [class*='quick-action']:last-child, [class*='action-item']:last-child {
             border-bottom: 0 !important;
           }
-
           [class*='chip']::after, [class*='suggestion']::after, [class*='quick-action']::after, [class*='action-item']::after {
             content: '›' !important;
             position: absolute !important;
@@ -936,23 +867,19 @@
             font-size: 22px !important;
             font-weight: 400 !important;
           }
-
           /* Solid red-tinted hover — not the semi-transparent state-layer token,
              which reads as gray at low opacity on a near-white surface */
           [class*='chip']:hover, [class*='suggestion']:hover, [class*='quick-action']:hover, [class*='action-item']:hover {
             background: #fff3f3 !important;
             color: #8f0000 !important;
           }
-
           [class*='chip']:hover::after, [class*='suggestion']:hover::after,
           [class*='quick-action']:hover::after, [class*='action-item']:hover::after {
             color: #ec0000 !important;
           }
-
           [class*='chip']:active, [class*='suggestion']:active, [class*='quick-action']:active, [class*='action-item']:active {
             background: #ffe6e6 !important;
           }
-
           [class*='chip'] [class*='title'], [class*='chip'] [class*='label'],
           [class*='suggestion'] [class*='title'], [class*='quick-action'] [class*='title'] {
             color: #1a1a1a !important;
@@ -961,11 +888,9 @@
             display: block !important;
             margin-bottom: 3px !important;
           }
-
           [class*='chip']:hover [class*='title'], [class*='quick-action']:hover [class*='title'] {
             color: #8f0000 !important;
           }
-
           [class*='chip'] [class*='description'], [class*='chip'] [class*='subtitle'],
           [class*='suggestion'] [class*='description'], [class*='quick-action'] [class*='description'] {
             color: #777777 !important;
@@ -974,16 +899,13 @@
             line-height: 1.35 !important;
             display: block !important;
           }
-
           /* ===== Input / footer ===== */
-
           [class*='input-container'], [class*='input-area'], [class*='composer'], [class*='footer'] {
             background: linear-gradient(180deg, #fffdfd 0%, #ffffff 100%) !important;
             border-top: 1px solid #eadede !important;
             box-shadow: 0 -8px 22px rgba(80,0,0,.035) !important;
             padding: 11px 12px !important;
           }
-
           input, textarea, [contenteditable] {
             background: #ffffff !important;
             color: #242424 !important;
@@ -1000,7 +922,6 @@
             border-color: #ec0000 !important;
             box-shadow: 0 0 0 3px rgba(236,0,0,.10) !important;
           }
-
           [class*='send-btn'], button.send, button[type='submit'], [aria-label*='send'], [aria-label*='Send'] {
             background: #ec0000 !important;
             color: #ffffff !important;
@@ -1015,19 +936,16 @@
             background: #c90000 !important;
             transform: scale(1.04) !important;
           }
-
           [aria-label*='microphone'], [aria-label*='Microphone'], [aria-label*='audio'], [aria-label*='Audio'] {
             color: #666666 !important;
             display: inline-flex !important;
           }
-
           [class*='typing'], [class*='thinking'], [class*='loading'] {
             background: #fff8f8 !important;
             border: 1px solid #efdede !important;
             border-radius: 14px !important;
             padding: 10px 14px !important;
           }
-
           a { color: #c80000 !important; }
         ">
         <chat-reset-session-button slot="titlebar-actions" title-text="Nueva conversación"></chat-reset-session-button>
@@ -1036,7 +954,6 @@
       </chat-messenger-container>
     </chat-messenger>
   </div>
-
   <div id="fab-wrapper">
     <button id="chat-fab" onclick="openSantanderChat()" title="Abrir asistente de Banco Santander">
       <svg width="29" height="29" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1044,6 +961,5 @@
       </svg>
     </button>
   </div>
-
 </body>
 </html>
