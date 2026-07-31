@@ -75,6 +75,505 @@
       document.addEventListener('DOMContentLoaded', function () { scanRoot(document); });
     })();
   </script>
+  <script>
+    (function () {
+      'use strict';
+
+      const ELEMENT_NAME = 'santander-card-comparison';
+
+      function normalizeText(value, fallback) {
+        const text = value == null ? '' : String(value).trim();
+        return text || (fallback || '');
+      }
+
+      function safeHttpUrl(value) {
+        const text = normalizeText(value);
+        if (!text) return '';
+
+        try {
+          const parsed = new URL(text, window.location.href);
+          if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+            return parsed.href;
+          }
+        } catch (error) {
+          console.warn('[Santander Widget] URL inválida omitida:', text);
+        }
+
+        return '';
+      }
+
+      class SantanderCardComparison extends HTMLElement {
+        constructor() {
+          super();
+          this._dfPayload = null;
+          this._renderRoot = this.attachShadow({ mode: 'open' });
+        }
+
+        set dfPayload(value) {
+          this._dfPayload = value;
+          if (this.isConnected) this.render();
+        }
+
+        get dfPayload() {
+          return this._dfPayload;
+        }
+
+        connectedCallback() {
+          this.render();
+        }
+
+        getPayload() {
+          const raw = this._dfPayload && typeof this._dfPayload === 'object'
+            ? this._dfPayload
+            : {};
+
+          // Defensive compatibility: accept either the payload itself or the
+          // complete custom_template envelope.
+          if (
+            raw.type === 'custom_template' &&
+            raw.payload &&
+            typeof raw.payload === 'object'
+          ) {
+            return raw.payload;
+          }
+
+          return raw;
+        }
+
+        requestCard(product, defaultCtaLabel) {
+          const title = normalizeText(product && product.title, 'esta tarjeta');
+          const utterance = normalizeText(
+            product && product.ctaUtterance,
+            `Quiero solicitar la ${title}`
+          );
+
+          this.dispatchEvent(new CustomEvent('santander-card-requested', {
+            detail: {
+              productId: normalizeText(product && product.productId),
+              title,
+              utterance,
+              ctaLabel: normalizeText(
+                product && product.ctaLabel,
+                defaultCtaLabel
+              )
+            },
+            bubbles: true,
+            composed: true
+          }));
+
+          if (typeof window.sendSantanderQuery === 'function') {
+            window.sendSantanderQuery(utterance);
+            return;
+          }
+
+          console.error(
+            '[Santander Widget] window.sendSantanderQuery no está disponible.'
+          );
+        }
+
+        render() {
+          const payload = this.getPayload();
+          const title = normalizeText(
+            payload.title,
+            'Compará las tarjetas recomendadas'
+          );
+          const globalCtaLabel = normalizeText(payload.ctaLabel, 'Solicitar');
+          const products = Array.isArray(payload.productDetails)
+            ? payload.productDetails.filter(item => item && typeof item === 'object')
+            : [];
+          const features = Array.isArray(payload.features)
+            ? payload.features.filter(item => item && typeof item === 'object')
+            : [];
+
+          this._renderRoot.replaceChildren();
+
+          const style = document.createElement('style');
+          style.textContent = `
+            :host {
+              display: block;
+              width: 100%;
+              max-width: 100%;
+              color: var(--chat-messenger-color--on-surface, #242424);
+              font-family: var(--chat-messenger-font-family, 'DM Sans', Arial, sans-serif);
+              box-sizing: border-box;
+            }
+
+            * { box-sizing: border-box; }
+
+            .comparison {
+              width: 100%;
+              padding: 14px;
+              border: 1px solid var(--chat-messenger-color--outline-variant, rgba(236,0,0,.14));
+              border-radius: var(--chat-messenger-shape--corner-value-large, 20px);
+              background: var(--chat-messenger-color--surface-container, #fff);
+              box-shadow: 0 8px 24px rgba(82, 0, 0, .08);
+            }
+
+            .heading {
+              margin: 0 0 12px;
+              font-size: 16px;
+              line-height: 1.3;
+              font-weight: 700;
+              color: #1a1a1a;
+            }
+
+            .cards {
+              display: grid;
+              grid-auto-flow: column;
+              grid-auto-columns: minmax(220px, 78%);
+              gap: 12px;
+              overflow-x: auto;
+              overscroll-behavior-inline: contain;
+              scroll-snap-type: inline mandatory;
+              padding: 2px 2px 8px;
+              scrollbar-width: thin;
+            }
+
+            .card {
+              display: flex;
+              min-width: 0;
+              flex-direction: column;
+              scroll-snap-align: start;
+              overflow: hidden;
+              border: 1px solid rgba(236,0,0,.12);
+              border-radius: 16px;
+              background: #fffafa;
+            }
+
+            .card.primary {
+              border-color: rgba(236,0,0,.38);
+              box-shadow: 0 6px 18px rgba(236,0,0,.10);
+            }
+
+            .image-wrap {
+              position: relative;
+              display: flex;
+              min-height: 124px;
+              align-items: center;
+              justify-content: center;
+              padding: 14px;
+              background: linear-gradient(145deg, #fff, #fff2f2);
+            }
+
+            .image-wrap img {
+              display: block;
+              width: 100%;
+              max-width: 190px;
+              max-height: 112px;
+              object-fit: contain;
+              border-radius: 10px;
+            }
+
+            .badge {
+              position: absolute;
+              top: 9px;
+              left: 9px;
+              padding: 4px 8px;
+              border-radius: 999px;
+              background: #ec0000;
+              color: #fff;
+              font-size: 10px;
+              line-height: 1.2;
+              font-weight: 700;
+            }
+
+            .body {
+              display: flex;
+              flex: 1;
+              flex-direction: column;
+              padding: 13px;
+            }
+
+            .title {
+              margin: 0;
+              font-size: 14px;
+              line-height: 1.35;
+              font-weight: 700;
+              color: #1a1a1a;
+            }
+
+            .subtitle {
+              margin: 5px 0 0;
+              color: #6f6f6f;
+              font-size: 12px;
+              line-height: 1.4;
+            }
+
+            .price {
+              margin: 9px 0 0;
+              color: #8f0000;
+              font-size: 12px;
+              line-height: 1.35;
+              font-weight: 600;
+            }
+
+            .features {
+              display: grid;
+              gap: 0;
+              margin: 12px 0 0;
+              border-top: 1px solid rgba(236,0,0,.10);
+            }
+
+            .feature {
+              display: grid;
+              gap: 3px;
+              padding: 9px 0;
+              border-bottom: 1px solid rgba(236,0,0,.08);
+            }
+
+            .feature-label {
+              color: #777;
+              font-size: 10px;
+              line-height: 1.3;
+              font-weight: 600;
+              text-transform: uppercase;
+              letter-spacing: .35px;
+            }
+
+            .feature-value {
+              color: #252525;
+              font-size: 12px;
+              line-height: 1.35;
+              overflow-wrap: anywhere;
+            }
+
+            .actions {
+              display: grid;
+              gap: 8px;
+              margin-top: auto;
+              padding-top: 13px;
+            }
+
+            .request-button,
+            .details-link {
+              min-height: 40px;
+              border-radius: 999px;
+              font: inherit;
+              font-size: 13px;
+              font-weight: 700;
+              text-align: center;
+            }
+
+            .request-button {
+              border: 0;
+              background: #ec0000;
+              color: #fff;
+              cursor: pointer;
+              box-shadow: 0 4px 12px rgba(236,0,0,.22);
+              transition: transform .15s ease, background .15s ease;
+            }
+
+            .request-button:hover {
+              background: #c80000;
+              transform: translateY(-1px);
+            }
+
+            .request-button:focus-visible,
+            .details-link:focus-visible {
+              outline: 3px solid rgba(236,0,0,.20);
+              outline-offset: 2px;
+            }
+
+            .details-link {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              border: 1px solid rgba(236,0,0,.25);
+              color: #a40000;
+              text-decoration: none;
+              background: #fff;
+            }
+
+            .empty {
+              margin: 0;
+              color: #6f6f6f;
+              font-size: 13px;
+              line-height: 1.45;
+            }
+
+            @media (min-width: 760px) {
+              .cards {
+                grid-auto-columns: minmax(235px, 1fr);
+              }
+            }
+          `;
+          this._renderRoot.appendChild(style);
+
+          const wrapper = document.createElement('section');
+          wrapper.className = 'comparison';
+          wrapper.setAttribute('aria-label', title);
+
+          const heading = document.createElement('h3');
+          heading.className = 'heading';
+          heading.textContent = title;
+          wrapper.appendChild(heading);
+
+          if (!products.length) {
+            const empty = document.createElement('p');
+            empty.className = 'empty';
+            empty.textContent = 'No pude cargar las tarjetas para comparar.';
+            wrapper.appendChild(empty);
+            this._renderRoot.appendChild(wrapper);
+            return;
+          }
+
+          const cards = document.createElement('div');
+          cards.className = 'cards';
+          cards.setAttribute('role', 'list');
+
+          products.forEach((product, productIndex) => {
+            const card = document.createElement('article');
+            card.className = productIndex === 0 ? 'card primary' : 'card';
+            card.setAttribute('role', 'listitem');
+
+            const imageWrap = document.createElement('div');
+            imageWrap.className = 'image-wrap';
+
+            if (productIndex === 0) {
+              const badge = document.createElement('span');
+              badge.className = 'badge';
+              badge.textContent = 'Recomendada para vos';
+              imageWrap.appendChild(badge);
+            }
+
+            const imageUris = Array.isArray(product.imageUris)
+              ? product.imageUris
+              : [];
+            const imageUrl = safeHttpUrl(imageUris[0]);
+
+            if (imageUrl) {
+              const image = document.createElement('img');
+              image.src = imageUrl;
+              image.alt = normalizeText(
+                product.imageAltText,
+                `Tarjeta ${normalizeText(product.title)}`
+              );
+              image.loading = 'lazy';
+              image.decoding = 'async';
+              imageWrap.appendChild(image);
+            }
+
+            card.appendChild(imageWrap);
+
+            const body = document.createElement('div');
+            body.className = 'body';
+
+            const productTitle = document.createElement('h4');
+            productTitle.className = 'title';
+            productTitle.textContent = normalizeText(product.title, 'Tarjeta Santander');
+            body.appendChild(productTitle);
+
+            const subtitleText = normalizeText(product.subtitle);
+            if (subtitleText) {
+              const subtitle = document.createElement('p');
+              subtitle.className = 'subtitle';
+              subtitle.textContent = subtitleText;
+              body.appendChild(subtitle);
+            }
+
+            const priceText = normalizeText(product.price);
+            if (priceText) {
+              const price = document.createElement('p');
+              price.className = 'price';
+              price.textContent = `Mantenimiento: ${priceText}`;
+              body.appendChild(price);
+            }
+
+            const featureList = document.createElement('div');
+            featureList.className = 'features';
+
+            features.forEach(feature => {
+              const specs = Array.isArray(feature.productSpecs)
+                ? feature.productSpecs
+                : [];
+              const spec = specs[productIndex];
+              if (!spec || typeof spec !== 'object') return;
+
+              let value = normalizeText(spec.text);
+              let anchorUrl = '';
+
+              if (!value && spec.anchor && typeof spec.anchor === 'object') {
+                value = normalizeText(spec.anchor.displayText);
+                anchorUrl = safeHttpUrl(spec.anchor.target);
+              }
+
+              if (!value && spec.image && typeof spec.image === 'object') {
+                value = normalizeText(spec.image.altText);
+              }
+
+              if (!value) return;
+
+              const row = document.createElement('div');
+              row.className = 'feature';
+
+              const label = document.createElement('span');
+              label.className = 'feature-label';
+              label.textContent = normalizeText(feature.label, 'Detalle');
+              row.appendChild(label);
+
+              if (anchorUrl) {
+                const valueLink = document.createElement('a');
+                valueLink.className = 'feature-value';
+                valueLink.href = anchorUrl;
+                valueLink.target = '_blank';
+                valueLink.rel = 'noopener noreferrer';
+                valueLink.textContent = value;
+                row.appendChild(valueLink);
+              } else {
+                const valueText = document.createElement('span');
+                valueText.className = 'feature-value';
+                valueText.textContent = value;
+                row.appendChild(valueText);
+              }
+
+              featureList.appendChild(row);
+            });
+
+            body.appendChild(featureList);
+
+            const actions = document.createElement('div');
+            actions.className = 'actions';
+
+            const button = document.createElement('button');
+            button.className = 'request-button';
+            button.type = 'button';
+            button.textContent = normalizeText(product.ctaLabel, globalCtaLabel);
+            button.setAttribute(
+              'aria-label',
+              `${button.textContent} ${normalizeText(product.title)}`
+            );
+            button.addEventListener('click', () => {
+              this.requestCard(product, globalCtaLabel);
+            });
+            actions.appendChild(button);
+
+            const productUrl = safeHttpUrl(product.uri);
+            if (productUrl) {
+              const details = document.createElement('a');
+              details.className = 'details-link';
+              details.href = productUrl;
+              details.target = '_blank';
+              details.rel = 'noopener noreferrer';
+              details.textContent = 'Ver detalle';
+              actions.appendChild(details);
+            }
+
+            body.appendChild(actions);
+            card.appendChild(body);
+            cards.appendChild(card);
+          });
+
+          wrapper.appendChild(cards);
+          this._renderRoot.appendChild(wrapper);
+        }
+      }
+
+      if (!customElements.get(ELEMENT_NAME)) {
+        customElements.define(ELEMENT_NAME, SantanderCardComparison);
+        console.log(`[Santander Widget] Registrado: ${ELEMENT_NAME}`);
+      }
+    })();
+  </script>
   <script defer src="https://www.gstatic.com/chat-messenger/sdk/prod/v1.16/chat-messenger.js"></script>
   <link rel="stylesheet" href="https://www.gstatic.com/chat-messenger/sdk/prod/v1.16/themes/chat-messenger-default.css">
   <link rel="stylesheet" href="https://www.gstatic.com/chat-messenger/sdk/prod/v1.16/themes/chat-messenger-layout.css">
