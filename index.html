@@ -1284,8 +1284,40 @@
         'Tomas'
       ];
 
-      function cleanSpeechText(text) {
+      // Normalize terms only in the copy sent to speechSynthesis.
+      // The original text, currency symbols, product names and emojis remain
+      // unchanged in the visual chat.
+      function normalizeCurrencyForSpeech(text) {
         return String(text || '')
+          // Explicit US-dollar formats must remain dollars.
+          .replace(/\bUSD\s*\$?\s*([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)/gi, '$1 dólares estadounidenses')
+          .replace(/US\$\s*([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)/gi, '$1 dólares estadounidenses')
+          .replace(/U\$S\s*([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)/gi, '$1 dólares estadounidenses')
+
+          // Explicit Argentine-peso formats.
+          .replace(/\bARS\s*\$?\s*([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)/gi, '$1 pesos argentinos')
+
+          // Monthly amounts such as "$6.400/mes".
+          .replace(/\$\s*([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)\s*\/\s*mes\b/gi, '$1 pesos argentinos por mes')
+
+          // In this Santander Argentina demo, a bare "$" means Argentine pesos.
+          .replace(/\$\s*([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)/g, '$1 pesos argentinos')
+
+          // Defensive cleanup when the source already names the currency.
+          .replace(/\bpesos argentinos\s+pesos(?: argentinos)?\b/gi, 'pesos argentinos')
+          .replace(/\bdólares estadounidenses\s+dólares(?: estadounidenses)?\b/gi, 'dólares estadounidenses');
+      }
+
+      function normalizeProductTermsForSpeech(text) {
+        return String(text || '')
+          // Santander's financing product is pronounced "Plan Ve", not "Plan uve".
+          .replace(/\bPlan\s+V\b/gi, 'Plan Ve');
+      }
+
+      function cleanSpeechText(text) {
+        return normalizeProductTermsForSpeech(
+          normalizeCurrencyForSpeech(text)
+        )
           // Remove Markdown formatting before sending text to TTS.
           .replace(/\*\*(.*?)\*\*/g, '$1')
           .replace(/__(.*?)__/g, '$1')
