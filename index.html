@@ -80,6 +80,8 @@
       'use strict';
 
       const ELEMENT_NAME = 'santander-card-comparison';
+      const PAYLOAD_RETRY_LIMIT = 50;
+      const PAYLOAD_RETRY_INTERVAL_MS = 100;
 
       function normalizeText(value, fallback) {
         const text = value == null ? '' : String(value).trim();
@@ -102,42 +104,319 @@
         return '';
       }
 
+      function parseJsonIfNeeded(value) {
+        if (typeof value !== 'string') return value;
+
+        const text = value.trim();
+        if (!text || (!text.startsWith('{') && !text.startsWith('['))) {
+          return value;
+        }
+
+        try {
+          return JSON.parse(text);
+        } catch (error) {
+          return value;
+        }
+      }
+
+      function decodeGoogleValue(value, depth, seen) {
+        if (depth > 14 || value == null) return value;
+
+        const parsed = parseJsonIfNeeded(value);
+        if (parsed !== value) {
+          return decodeGoogleValue(parsed, depth + 1, seen);
+        }
+
+        if (Array.isArray(value)) {
+          return value.map(function (item) {
+            return decodeGoogleValue(item, depth + 1, seen);
+          });
+        }
+
+        if (typeof value !== 'object') return value;
+        if (seen.has(value)) return value;
+        seen.add(value);
+
+        if (Object.prototype.hasOwnProperty.call(value, 'nullValue')) return null;
+        if (Object.prototype.hasOwnProperty.call(value, 'stringValue')) return value.stringValue;
+        if (Object.prototype.hasOwnProperty.call(value, 'numberValue')) return Number(value.numberValue);
+        if (Object.prototype.hasOwnProperty.call(value, 'integerValue')) return Number(value.integerValue);
+        if (Object.prototype.hasOwnProperty.call(value, 'doubleValue')) return Number(value.doubleValue);
+        if (Object.prototype.hasOwnProperty.call(value, 'boolValue')) return Boolean(value.boolValue);
+        if (Object.prototype.hasOwnProperty.call(value, 'booleanValue')) return Boolean(value.booleanValue);
+
+        if (value.listValue && Array.isArray(value.listValue.values)) {
+          return value.listValue.values.map(function (item) {
+            return decodeGoogleValue(item, depth + 1, seen);
+          });
+        }
+
+        if (value.arrayValue && Array.isArray(value.arrayValue.values)) {
+          return value.arrayValue.values.map(function (item) {
+            return decodeGoogleValue(item, depth + 1, seen);
+          });
+        }
+
+        const structFields = value.structValue && value.structValue.fields;
+        const mapFields = value.mapValue && value.mapValue.fields;
+        const fields = structFields || mapFields;
+
+        if (fields && typeof fields === 'object' && !Array.isArray(fields)) {
+          const decoded = {};
+          Object.entries(fields).forEach(function (entry) {
+            decoded[entry[0]] = decodeGoogleValue(entry[1], depth + 1, seen);
+          });
+          return decoded;
+        }
+
+        if (typeof value.toJSON === 'function') {
+          try {
+            const jsonValue = value.toJSON();
+            if (jsonValue && jsonValue !== value) {
+              return decodeGoogleValue(jsonValue, depth + 1, seen);
+            }
+          } catch (error) {
+            // Continue with the enumerable object representation.
+          }
+        }
+
+        const decoded = {};
+        Object.entries(value).forEach(function (entry) {
+          decoded[entry[0]] = decodeGoogleValue(entry[1], depth + 1, seen);
+        });
+        return decoded;
+      }
+
+      function findComparisonPayload(candidate, depth, seen) {
+        if (depth > 14 || candidate == null) return null;
+
+        const parsed = parseJsonIfNeeded(candidate);
+        const decoded = decodeGoogleValue(parsed, 0, new WeakSet());
+
+        if (decoded == null) return null;
+
+        if (Array.isArray(decoded)) {
+          for (const item of decoded) {
+            const found = findComparisonPayload(item, depth + 1, seen);
+            if (found) return found;
+          }
+          return null;
+        }
+
+        if (typeof decoded !== 'object') return null;
+        if (seen.has(decoded)) return null;
+        seen.add(decoded);
+
+        if (Array.isArray(decoded.productDetails)) {
+          return decoded;
+        }
+
+        const priorityKeys = [
+          'payload',
+          'data',
+          'value',
+          'result',
+          'response',
+          'args',
+          'widget',
+          'content',
+          'customPayload',
+          'richContent'
+        ];
+
+        for (const key of priorityKeys) {
+          if (!Object.prototype.hasOwnProperty.call(decoded, key)) continue;
+          const found = findComparisonPayload(decoded[key], depth + 1, seen);
+          if (found) return found;
+        }
+
+        for (const value of Object.values(decoded)) {
+          const found = findComparisonPayload(value, depth + 1, seen);
+          if (found) return found;
+        }
+
+        return null;
+      }
+
       class SantanderCardComparison extends HTMLElement {
         constructor() {
           super();
-          this._dfPayload = null;
+          this._dfPayloadValue = undefined;
+          this._payloadValue = undefined;
           this._renderRoot = this.attachShadow({ mode: 'open' });
+          this._payloadRetryTimer = null;
+          this._payloadRetryCount = 0;
+          this._renderQueued = false;
+          this._lastDiagnosticSignature = '';
+        }
+
+        static get observedAttributes() {
+          return ['df-payload', 'data-payload', 'payload'];
         }
 
         set dfPayload(value) {
-          this._dfPayload = value;
-          if (this.isConnected) this.render();
+          this._dfPayloadValue = value;
+          console.log('[Santander Widget] dfPayload recibido:', value);
+          this.scheduleRender();
         }
 
         get dfPayload() {
-          return this._dfPayload;
+          return this._dfPayloadValue;
+        }
+
+        set payload(value) {
+          this._payloadValue = value;
+          this.scheduleRender();
+        }
+
+        get payload() {
+          return this._payloadValue;
         }
 
         connectedCallback() {
-          this.render();
+          // Handles values assigned before the custom element was upgraded, or
+          // values installed by the SDK as own data properties rather than setters.
+          this.captureOwnProperty('dfPayload');
+          this.captureOwnProperty('payload');
+
+          this.scheduleRender();
+          this.startPayloadRetries();
+        }
+
+        disconnectedCallback() {
+          this.stopPayloadRetries();
+        }
+
+        attributeChangedCallback() {
+          this.scheduleRender();
+        }
+
+        captureOwnProperty(propertyName) {
+          const descriptor = Object.getOwnPropertyDescriptor(this, propertyName);
+          if (!descriptor || !Object.prototype.hasOwnProperty.call(descriptor, 'value')) {
+            return;
+          }
+
+          const value = descriptor.value;
+          try {
+            delete this[propertyName];
+            this[propertyName] = value;
+          } catch (error) {
+            // If the SDK created a non-configurable property, getPayloadCandidates
+            // still reads descriptor.value directly.
+          }
+        }
+
+        startPayloadRetries() {
+          this.stopPayloadRetries();
+          this._payloadRetryCount = 0;
+
+          this._payloadRetryTimer = window.setInterval(() => {
+            this.captureOwnProperty('dfPayload');
+            this.captureOwnProperty('payload');
+            this._payloadRetryCount += 1;
+            this.scheduleRender();
+
+            const payload = this.getPayload();
+            if (
+              Array.isArray(payload.productDetails) &&
+              payload.productDetails.length > 0
+            ) {
+              this.stopPayloadRetries();
+              return;
+            }
+
+            if (this._payloadRetryCount >= PAYLOAD_RETRY_LIMIT) {
+              this.stopPayloadRetries();
+              this.render(true);
+            }
+          }, PAYLOAD_RETRY_INTERVAL_MS);
+        }
+
+        stopPayloadRetries() {
+          if (this._payloadRetryTimer != null) {
+            window.clearInterval(this._payloadRetryTimer);
+            this._payloadRetryTimer = null;
+          }
+        }
+
+        scheduleRender() {
+          if (!this.isConnected || this._renderQueued) return;
+          this._renderQueued = true;
+
+          queueMicrotask(() => {
+            requestAnimationFrame(() => {
+              this._renderQueued = false;
+              this.render(false);
+            });
+          });
+        }
+
+        getPayloadCandidates() {
+          const candidates = [
+            this._dfPayloadValue,
+            this._payloadValue
+          ];
+
+          for (const propertyName of ['dfPayload', 'payload', 'data', 'widgetPayload']) {
+            try {
+              const descriptor = Object.getOwnPropertyDescriptor(this, propertyName);
+              if (descriptor && Object.prototype.hasOwnProperty.call(descriptor, 'value')) {
+                candidates.push(descriptor.value);
+              }
+            } catch (error) {
+              // Ignore inaccessible descriptors.
+            }
+
+            try {
+              candidates.push(this[propertyName]);
+            } catch (error) {
+              // Ignore inaccessible properties.
+            }
+          }
+
+          for (const attributeName of ['df-payload', 'data-payload', 'payload']) {
+            const attributeValue = this.getAttribute(attributeName);
+            if (attributeValue) candidates.push(attributeValue);
+          }
+
+          return candidates.filter(function (candidate) {
+            return candidate !== undefined && candidate !== null && candidate !== '';
+          });
         }
 
         getPayload() {
-          const raw = this._dfPayload && typeof this._dfPayload === 'object'
-            ? this._dfPayload
-            : {};
+          const candidates = this.getPayloadCandidates();
 
-          // Defensive compatibility: accept either the payload itself or the
-          // complete custom_template envelope.
-          if (
-            raw.type === 'custom_template' &&
-            raw.payload &&
-            typeof raw.payload === 'object'
-          ) {
-            return raw.payload;
+          for (const candidate of candidates) {
+            const payload = findComparisonPayload(candidate, 0, new WeakSet());
+            if (payload) return payload;
           }
 
-          return raw;
+          return {};
+        }
+
+        logPayloadDiagnostic() {
+          const candidates = this.getPayloadCandidates();
+          const signature = candidates.map(function (candidate) {
+            if (typeof candidate === 'string') return `string:${candidate.slice(0, 80)}`;
+            if (Array.isArray(candidate)) return `array:${candidate.length}`;
+            if (candidate && typeof candidate === 'object') {
+              return `object:${Object.keys(candidate).sort().join(',')}`;
+            }
+            return typeof candidate;
+          }).join('|');
+
+          if (signature === this._lastDiagnosticSignature) return;
+          this._lastDiagnosticSignature = signature;
+
+          console.warn('[Santander Widget] No se encontró productDetails en el payload recibido.', {
+            candidates,
+            ownProperties: Object.getOwnPropertyNames(this),
+            attributes: Array.from(this.attributes).map(function (attribute) {
+              return [attribute.name, attribute.value];
+            })
+          });
         }
 
         requestCard(product, defaultCtaLabel) {
@@ -171,7 +450,7 @@
           );
         }
 
-        render() {
+        render(forceEmpty) {
           const payload = this.getPayload();
           const title = normalizeText(
             payload.title,
@@ -411,11 +690,21 @@
           if (!products.length) {
             const empty = document.createElement('p');
             empty.className = 'empty';
-            empty.textContent = 'No pude cargar las tarjetas para comparar.';
+
+            const retriesExhausted = this._payloadRetryCount >= PAYLOAD_RETRY_LIMIT;
+            if (!forceEmpty && !retriesExhausted) {
+              empty.textContent = 'Cargando tarjetas recomendadas...';
+            } else {
+              empty.textContent = 'No pude cargar las tarjetas para comparar.';
+              this.logPayloadDiagnostic();
+            }
+
             wrapper.appendChild(empty);
             this._renderRoot.appendChild(wrapper);
             return;
           }
+
+          this.stopPayloadRetries();
 
           const cards = document.createElement('div');
           cards.className = 'cards';
