@@ -4,21 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Santander Select | Asistente Virtual</title>
+
   <script>
     // ---- Quick actions: single-box layout (patch runs before chat-messenger.js) ----
-    // MutationObserver never crosses shadow boundaries, even with subtree:true — it only
-    // sees the DOM tree it was attached to. Since .quick-actions gets created dynamically
-    // deep inside nested shadow roots (only after the agent actually sends quick actions,
-    // not at page load), an observer on the light-DOM #chat-wrapper never fires for it.
-    // The fix: patch Element.prototype.attachShadow so we get notified the instant ANY
-    // shadow root is created anywhere on the page, and attach a dedicated observer to
-    // each one individually. This script must run before chat-messenger.js (which is
-    // why it's inline, unbuffered, and placed ahead of that <script defer> tag) so no
-    // shadow root creation slips past unpatched.
     (function () {
       const QUICK_ACTIONS_STYLE_MARK = 'data-santander-quick-actions';
       const observedRoots = new WeakSet();
       const styledRoots = new WeakSet();
+
       function injectInto(root) {
         if (styledRoots.has(root)) return;
         styledRoots.add(root);
@@ -48,6 +41,7 @@
         ].join('\n');
         root.appendChild(style);
       }
+
       function scanRoot(root) {
         root.querySelectorAll('.quick-actions').forEach(function (qa) {
           injectInto(qa.getRootNode());
@@ -56,6 +50,7 @@
           if (el.shadowRoot) observeRoot(el.shadowRoot);
         });
       }
+
       function observeRoot(root) {
         if (observedRoots.has(root)) return;
         observedRoots.add(root);
@@ -65,16 +60,18 @@
           subtree: true
         });
       }
+
       const originalAttachShadow = Element.prototype.attachShadow;
       Element.prototype.attachShadow = function (init) {
         const shadow = originalAttachShadow.call(this, init);
         observeRoot(shadow);
         return shadow;
       };
-      // Cover any shadow roots that might already exist (defensive; normally none yet).
+
       document.addEventListener('DOMContentLoaded', function () { scanRoot(document); });
     })();
   </script>
+
   <script>
     (function () {
       'use strict';
@@ -91,7 +88,6 @@
       function safeHttpUrl(value) {
         const text = normalizeText(value);
         if (!text) return '';
-
         try {
           const parsed = new URL(text, window.location.href);
           if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
@@ -100,18 +96,15 @@
         } catch (error) {
           console.warn('[Santander Widget] URL inválida omitida:', text);
         }
-
         return '';
       }
 
       function parseJsonIfNeeded(value) {
         if (typeof value !== 'string') return value;
-
         const text = value.trim();
         if (!text || (!text.startsWith('{') && !text.startsWith('['))) {
           return value;
         }
-
         try {
           return JSON.parse(text);
         } catch (error) {
@@ -121,18 +114,15 @@
 
       function decodeGoogleValue(value, depth, seen) {
         if (depth > 14 || value == null) return value;
-
         const parsed = parseJsonIfNeeded(value);
         if (parsed !== value) {
           return decodeGoogleValue(parsed, depth + 1, seen);
         }
-
         if (Array.isArray(value)) {
           return value.map(function (item) {
             return decodeGoogleValue(item, depth + 1, seen);
           });
         }
-
         if (typeof value !== 'object') return value;
         if (seen.has(value)) return value;
         seen.add(value);
@@ -144,23 +134,21 @@
         if (Object.prototype.hasOwnProperty.call(value, 'doubleValue')) return Number(value.doubleValue);
         if (Object.prototype.hasOwnProperty.call(value, 'boolValue')) return Boolean(value.boolValue);
         if (Object.prototype.hasOwnProperty.call(value, 'booleanValue')) return Boolean(value.booleanValue);
-
+        
         if (value.listValue && Array.isArray(value.listValue.values)) {
           return value.listValue.values.map(function (item) {
             return decodeGoogleValue(item, depth + 1, seen);
           });
         }
-
         if (value.arrayValue && Array.isArray(value.arrayValue.values)) {
           return value.arrayValue.values.map(function (item) {
             return decodeGoogleValue(item, depth + 1, seen);
           });
         }
-
+        
         const structFields = value.structValue && value.structValue.fields;
         const mapFields = value.mapValue && value.mapValue.fields;
         const fields = structFields || mapFields;
-
         if (fields && typeof fields === 'object' && !Array.isArray(fields)) {
           const decoded = {};
           Object.entries(fields).forEach(function (entry) {
@@ -168,7 +156,6 @@
           });
           return decoded;
         }
-
         if (typeof value.toJSON === 'function') {
           try {
             const jsonValue = value.toJSON();
@@ -179,7 +166,7 @@
             // Continue with the enumerable object representation.
           }
         }
-
+        
         const decoded = {};
         Object.entries(value).forEach(function (entry) {
           decoded[entry[0]] = decodeGoogleValue(entry[1], depth + 1, seen);
@@ -187,12 +174,11 @@
         return decoded;
       }
 
+      // V2: Función robustecida para encontrar el payload anidado
       function findComparisonPayload(candidate, depth, seen) {
         if (depth > 14 || candidate == null) return null;
-
         const parsed = parseJsonIfNeeded(candidate);
         const decoded = decodeGoogleValue(parsed, 0, new WeakSet());
-
         if (decoded == null) return null;
 
         if (Array.isArray(decoded)) {
@@ -207,21 +193,19 @@
         if (seen.has(decoded)) return null;
         seen.add(decoded);
 
+        // CASO 1: Acceso directo (productDetails está en la raíz)
         if (Array.isArray(decoded.productDetails)) {
           return decoded;
         }
 
+        // CASO 2: Acceso anidado (el payload real está dentro de un campo "payload")
+        if (decoded.payload && typeof decoded.payload === 'object' && Array.isArray(decoded.payload.productDetails)) {
+          return decoded.payload;
+        }
+
         const priorityKeys = [
-          'payload',
-          'data',
-          'value',
-          'result',
-          'response',
-          'args',
-          'widget',
-          'content',
-          'customPayload',
-          'richContent'
+          'payload', 'data', 'value', 'result', 'response',
+          'args', 'widget', 'content', 'customPayload', 'richContent'
         ];
 
         for (const key of priorityKeys) {
@@ -274,11 +258,8 @@
         }
 
         connectedCallback() {
-          // Handles values assigned before the custom element was upgraded, or
-          // values installed by the SDK as own data properties rather than setters.
           this.captureOwnProperty('dfPayload');
           this.captureOwnProperty('payload');
-
           this.scheduleRender();
           this.startPayloadRetries();
         }
@@ -296,36 +277,26 @@
           if (!descriptor || !Object.prototype.hasOwnProperty.call(descriptor, 'value')) {
             return;
           }
-
           const value = descriptor.value;
           try {
             delete this[propertyName];
             this[propertyName] = value;
-          } catch (error) {
-            // If the SDK created a non-configurable property, getPayloadCandidates
-            // still reads descriptor.value directly.
-          }
+          } catch (error) {}
         }
 
         startPayloadRetries() {
           this.stopPayloadRetries();
           this._payloadRetryCount = 0;
-
           this._payloadRetryTimer = window.setInterval(() => {
             this.captureOwnProperty('dfPayload');
             this.captureOwnProperty('payload');
             this._payloadRetryCount += 1;
             this.scheduleRender();
-
             const payload = this.getPayload();
-            if (
-              Array.isArray(payload.productDetails) &&
-              payload.productDetails.length > 0
-            ) {
+            if (Array.isArray(payload.productDetails) && payload.productDetails.length > 0) {
               this.stopPayloadRetries();
               return;
             }
-
             if (this._payloadRetryCount >= PAYLOAD_RETRY_LIMIT) {
               this.stopPayloadRetries();
               this.render(true);
@@ -343,7 +314,6 @@
         scheduleRender() {
           if (!this.isConnected || this._renderQueued) return;
           this._renderQueued = true;
-
           queueMicrotask(() => {
             requestAnimationFrame(() => {
               this._renderQueued = false;
@@ -353,33 +323,22 @@
         }
 
         getPayloadCandidates() {
-          const candidates = [
-            this._dfPayloadValue,
-            this._payloadValue
-          ];
-
+          const candidates = [this._dfPayloadValue, this._payloadValue];
           for (const propertyName of ['dfPayload', 'payload', 'data', 'widgetPayload']) {
             try {
               const descriptor = Object.getOwnPropertyDescriptor(this, propertyName);
               if (descriptor && Object.prototype.hasOwnProperty.call(descriptor, 'value')) {
                 candidates.push(descriptor.value);
               }
-            } catch (error) {
-              // Ignore inaccessible descriptors.
-            }
-
+            } catch (error) {}
             try {
               candidates.push(this[propertyName]);
-            } catch (error) {
-              // Ignore inaccessible properties.
-            }
+            } catch (error) {}
           }
-
           for (const attributeName of ['df-payload', 'data-payload', 'payload']) {
             const attributeValue = this.getAttribute(attributeName);
             if (attributeValue) candidates.push(attributeValue);
           }
-
           return candidates.filter(function (candidate) {
             return candidate !== undefined && candidate !== null && candidate !== '';
           });
@@ -387,12 +346,10 @@
 
         getPayload() {
           const candidates = this.getPayloadCandidates();
-
           for (const candidate of candidates) {
             const payload = findComparisonPayload(candidate, 0, new WeakSet());
             if (payload) return payload;
           }
-
           return {};
         }
 
@@ -406,10 +363,8 @@
             }
             return typeof candidate;
           }).join('|');
-
           if (signature === this._lastDiagnosticSignature) return;
           this._lastDiagnosticSignature = signature;
-
           console.warn('[Santander Widget] No se encontró productDetails en el payload recibido.', {
             candidates,
             ownProperties: Object.getOwnPropertyNames(this),
@@ -425,27 +380,18 @@
             product && product.ctaUtterance,
             `Quiero solicitar la ${title}`
           );
-
           const eventDetail = {
             productId: normalizeText(product && product.productId),
             cardName: title,
             title,
             utterance,
-            ctaLabel: normalizeText(
-              product && product.ctaLabel,
-              defaultCtaLabel
-            )
+            ctaLabel: normalizeText(product && product.ctaLabel, defaultCtaLabel)
           };
-
-          // The visual component only reports the selection. The outer page owns
-          // the chat SDK interaction and sends the utterance back to the agent.
           this.dispatchEvent(new CustomEvent('card-selected', {
             detail: eventDetail,
             bubbles: true,
             composed: true
           }));
-
-          // Backward-compatible semantic event for any existing listener.
           this.dispatchEvent(new CustomEvent('santander-card-requested', {
             detail: eventDetail,
             bubbles: true,
@@ -455,10 +401,7 @@
 
         render(forceEmpty) {
           const payload = this.getPayload();
-          const title = normalizeText(
-            payload.title,
-            'Compará las tarjetas recomendadas'
-          );
+          const title = normalizeText(payload.title, 'Compará las tarjetas recomendadas');
           const globalCtaLabel = normalizeText(payload.ctaLabel, 'Solicitar');
           const products = Array.isArray(payload.productDetails)
             ? payload.productDetails.filter(item => item && typeof item === 'object')
@@ -472,212 +415,49 @@
           const style = document.createElement('style');
           style.textContent = `
             :host {
-              display: block;
-              width: 100%;
-              max-width: 100%;
+              display: block; width: 100%; max-width: 100%;
               color: var(--chat-messenger-color--on-surface, #242424);
               font-family: var(--chat-messenger-font-family, 'DM Sans', Arial, sans-serif);
               box-sizing: border-box;
             }
-
             * { box-sizing: border-box; }
-
             .comparison {
-              width: 100%;
-              padding: 14px;
+              width: 100%; padding: 14px;
               border: 1px solid var(--chat-messenger-color--outline-variant, rgba(236,0,0,.14));
               border-radius: var(--chat-messenger-shape--corner-value-large, 20px);
               background: var(--chat-messenger-color--surface-container, #fff);
               box-shadow: 0 8px 24px rgba(82, 0, 0, .08);
             }
-
-            .heading {
-              margin: 0 0 12px;
-              font-size: 16px;
-              line-height: 1.3;
-              font-weight: 700;
-              color: #1a1a1a;
-            }
-
+            .heading { margin: 0 0 12px; font-size: 16px; line-height: 1.3; font-weight: 700; color: #1a1a1a; }
             .cards {
-              display: grid;
-              grid-auto-flow: column;
-              grid-auto-columns: minmax(220px, 78%);
-              gap: 12px;
-              overflow-x: auto;
-              overscroll-behavior-inline: contain;
-              scroll-snap-type: inline mandatory;
-              padding: 2px 2px 8px;
-              scrollbar-width: thin;
+              display: grid; grid-auto-flow: column; grid-auto-columns: minmax(220px, 78%);
+              gap: 12px; overflow-x: auto; overscroll-behavior-inline: contain;
+              scroll-snap-type: inline mandatory; padding: 2px 2px 8px; scrollbar-width: thin;
             }
-
             .card {
-              display: flex;
-              min-width: 0;
-              flex-direction: column;
-              scroll-snap-align: start;
-              overflow: hidden;
-              border: 1px solid rgba(236,0,0,.12);
-              border-radius: 16px;
-              background: #fffafa;
+              display: flex; min-width: 0; flex-direction: column; scroll-snap-align: start;
+              overflow: hidden; border: 1px solid rgba(236,0,0,.12); border-radius: 16px; background: #fffafa;
             }
-
-            .card.primary {
-              border-color: rgba(236,0,0,.38);
-              box-shadow: 0 6px 18px rgba(236,0,0,.10);
-            }
-
-            .image-wrap {
-              position: relative;
-              display: flex;
-              min-height: 124px;
-              align-items: center;
-              justify-content: center;
-              padding: 14px;
-              background: linear-gradient(145deg, #fff, #fff2f2);
-            }
-
-            .image-wrap img {
-              display: block;
-              width: 100%;
-              max-width: 190px;
-              max-height: 112px;
-              object-fit: contain;
-              border-radius: 10px;
-            }
-
-            .badge {
-              position: absolute;
-              top: 9px;
-              left: 9px;
-              padding: 4px 8px;
-              border-radius: 999px;
-              background: #ec0000;
-              color: #fff;
-              font-size: 10px;
-              line-height: 1.2;
-              font-weight: 700;
-            }
-
-            .body {
-              display: flex;
-              flex: 1;
-              flex-direction: column;
-              padding: 13px;
-            }
-
-            .title {
-              margin: 0;
-              font-size: 14px;
-              line-height: 1.35;
-              font-weight: 700;
-              color: #1a1a1a;
-            }
-
-            .subtitle {
-              margin: 5px 0 0;
-              color: #6f6f6f;
-              font-size: 12px;
-              line-height: 1.4;
-            }
-
-            .price {
-              margin: 9px 0 0;
-              color: #8f0000;
-              font-size: 12px;
-              line-height: 1.35;
-              font-weight: 600;
-            }
-
-            .features {
-              display: grid;
-              gap: 0;
-              margin: 12px 0 0;
-              border-top: 1px solid rgba(236,0,0,.10);
-            }
-
-            .feature {
-              display: grid;
-              gap: 3px;
-              padding: 9px 0;
-              border-bottom: 1px solid rgba(236,0,0,.08);
-            }
-
-            .feature-label {
-              color: #777;
-              font-size: 10px;
-              line-height: 1.3;
-              font-weight: 600;
-              text-transform: uppercase;
-              letter-spacing: .35px;
-            }
-
-            .feature-value {
-              color: #252525;
-              font-size: 12px;
-              line-height: 1.35;
-              overflow-wrap: anywhere;
-            }
-
-            .actions {
-              display: grid;
-              gap: 8px;
-              margin-top: auto;
-              padding-top: 13px;
-            }
-
-            .request-button,
-            .details-link {
-              min-height: 40px;
-              border-radius: 999px;
-              font: inherit;
-              font-size: 13px;
-              font-weight: 700;
-              text-align: center;
-            }
-
-            .request-button {
-              border: 0;
-              background: #ec0000;
-              color: #fff;
-              cursor: pointer;
-              box-shadow: 0 4px 12px rgba(236,0,0,.22);
-              transition: transform .15s ease, background .15s ease;
-            }
-
-            .request-button:hover {
-              background: #c80000;
-              transform: translateY(-1px);
-            }
-
-            .request-button:focus-visible,
-            .details-link:focus-visible {
-              outline: 3px solid rgba(236,0,0,.20);
-              outline-offset: 2px;
-            }
-
-            .details-link {
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              border: 1px solid rgba(236,0,0,.25);
-              color: #a40000;
-              text-decoration: none;
-              background: #fff;
-            }
-
-            .empty {
-              margin: 0;
-              color: #6f6f6f;
-              font-size: 13px;
-              line-height: 1.45;
-            }
-
-            @media (min-width: 760px) {
-              .cards {
-                grid-auto-columns: minmax(235px, 1fr);
-              }
-            }
+            .card.primary { border-color: rgba(236,0,0,.38); box-shadow: 0 6px 18px rgba(236,0,0,.10); }
+            .image-wrap { position: relative; display: flex; min-height: 124px; align-items: center; justify-content: center; padding: 14px; background: linear-gradient(145deg, #fff, #fff2f2); }
+            .image-wrap img { display: block; width: 100%; max-width: 190px; max-height: 112px; object-fit: contain; border-radius: 10px; }
+            .badge { position: absolute; top: 9px; left: 9px; padding: 4px 8px; border-radius: 999px; background: #ec0000; color: #fff; font-size: 10px; line-height: 1.2; font-weight: 700; }
+            .body { display: flex; flex: 1; flex-direction: column; padding: 13px; }
+            .title { margin: 0; font-size: 14px; line-height: 1.35; font-weight: 700; color: #1a1a1a; }
+            .subtitle { margin: 5px 0 0; color: #6f6f6f; font-size: 12px; line-height: 1.4; }
+            .price { margin: 9px 0 0; color: #8f0000; font-size: 12px; line-height: 1.35; font-weight: 600; }
+            .features { display: grid; gap: 0; margin: 12px 0 0; border-top: 1px solid rgba(236,0,0,.10); }
+            .feature { display: grid; gap: 3px; padding: 9px 0; border-bottom: 1px solid rgba(236,0,0,.08); }
+            .feature-label { color: #777; font-size: 10px; line-height: 1.3; font-weight: 600; text-transform: uppercase; letter-spacing: .35px; }
+            .feature-value { color: #252525; font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+            .actions { display: grid; gap: 8px; margin-top: auto; padding-top: 13px; }
+            .request-button, .details-link { min-height: 40px; border-radius: 999px; font: inherit; font-size: 13px; font-weight: 700; text-align: center; }
+            .request-button { border: 0; background: #ec0000; color: #fff; cursor: pointer; box-shadow: 0 4px 12px rgba(236,0,0,.22); transition: transform .15s ease, background .15s ease; }
+            .request-button:hover { background: #c80000; transform: translateY(-1px); }
+            .request-button:focus-visible, .details-link:focus-visible { outline: 3px solid rgba(236,0,0,.20); outline-offset: 2px; }
+            .details-link { display: flex; align-items: center; justify-content: center; border: 1px solid rgba(236,0,0,.25); color: #a40000; text-decoration: none; background: #fff; }
+            .empty { margin: 0; color: #6f6f6f; font-size: 13px; line-height: 1.45; }
+            @media (min-width: 760px) { .cards { grid-auto-columns: minmax(235px, 1fr); } }
           `;
           this._renderRoot.appendChild(style);
 
@@ -693,7 +473,6 @@
           if (!products.length) {
             const empty = document.createElement('p');
             empty.className = 'empty';
-
             const retriesExhausted = this._payloadRetryCount >= PAYLOAD_RETRY_LIMIT;
             if (!forceEmpty && !retriesExhausted) {
               empty.textContent = 'Cargando tarjetas recomendadas...';
@@ -701,7 +480,6 @@
               empty.textContent = 'No pude cargar las tarjetas para comparar.';
               this.logPayloadDiagnostic();
             }
-
             wrapper.appendChild(empty);
             this._renderRoot.appendChild(wrapper);
             return;
@@ -720,7 +498,6 @@
 
             const imageWrap = document.createElement('div');
             imageWrap.className = 'image-wrap';
-
             if (productIndex === 0) {
               const badge = document.createElement('span');
               badge.className = 'badge';
@@ -728,23 +505,16 @@
               imageWrap.appendChild(badge);
             }
 
-            const imageUris = Array.isArray(product.imageUris)
-              ? product.imageUris
-              : [];
+            const imageUris = Array.isArray(product.imageUris) ? product.imageUris : [];
             const imageUrl = safeHttpUrl(imageUris[0]);
-
             if (imageUrl) {
               const image = document.createElement('img');
               image.src = imageUrl;
-              image.alt = normalizeText(
-                product.imageAltText,
-                `Tarjeta ${normalizeText(product.title)}`
-              );
+              image.alt = normalizeText(product.imageAltText, `Tarjeta ${normalizeText(product.title)}`);
               image.loading = 'lazy';
               image.decoding = 'async';
               imageWrap.appendChild(image);
             }
-
             card.appendChild(imageWrap);
 
             const body = document.createElement('div');
@@ -773,11 +543,8 @@
 
             const featureList = document.createElement('div');
             featureList.className = 'features';
-
             features.forEach(feature => {
-              const specs = Array.isArray(feature.productSpecs)
-                ? feature.productSpecs
-                : [];
+              const specs = Array.isArray(feature.productSpecs) ? feature.productSpecs : [];
               const spec = specs[productIndex];
               if (!spec || typeof spec !== 'object') return;
 
@@ -788,16 +555,13 @@
                 value = normalizeText(spec.anchor.displayText);
                 anchorUrl = safeHttpUrl(spec.anchor.target);
               }
-
               if (!value && spec.image && typeof spec.image === 'object') {
                 value = normalizeText(spec.image.altText);
               }
-
               if (!value) return;
 
               const row = document.createElement('div');
               row.className = 'feature';
-
               const label = document.createElement('span');
               label.className = 'feature-label';
               label.textContent = normalizeText(feature.label, 'Detalle');
@@ -817,23 +581,17 @@
                 valueText.textContent = value;
                 row.appendChild(valueText);
               }
-
               featureList.appendChild(row);
             });
-
             body.appendChild(featureList);
 
             const actions = document.createElement('div');
             actions.className = 'actions';
-
             const button = document.createElement('button');
             button.className = 'request-button';
             button.type = 'button';
             button.textContent = normalizeText(product.ctaLabel, globalCtaLabel);
-            button.setAttribute(
-              'aria-label',
-              `${button.textContent} ${normalizeText(product.title)}`
-            );
+            button.setAttribute('aria-label', `${button.textContent} ${normalizeText(product.title)}`);
             button.addEventListener('click', () => {
               this.requestCard(product, globalCtaLabel);
             });
@@ -854,7 +612,6 @@
             card.appendChild(body);
             cards.appendChild(card);
           });
-
           wrapper.appendChild(cards);
           this._renderRoot.appendChild(wrapper);
         }
@@ -862,13 +619,15 @@
 
       if (!customElements.get(ELEMENT_NAME)) {
         customElements.define(ELEMENT_NAME, SantanderCardComparison);
-        console.log(`[Santander Widget][EVENT BRIDGE v1] Registrado: ${ELEMENT_NAME}`);
+        console.log(`[Santander Widget][EVENT BRIDGE v2] Registrado: ${ELEMENT_NAME}`);
       }
     })();
   </script>
+
   <script defer src="https://www.gstatic.com/chat-messenger/sdk/prod/v1.16/chat-messenger.js"></script>
   <link rel="stylesheet" href="https://www.gstatic.com/chat-messenger/sdk/prod/v1.16/themes/chat-messenger-default.css">
   <link rel="stylesheet" href="https://www.gstatic.com/chat-messenger/sdk/prod/v1.16/themes/chat-messenger-layout.css">
+  
   <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
     * { box-sizing: border-box; }
@@ -882,318 +641,76 @@
       --soft: #f5f6f7;
       --white: #ffffff;
     }
-    body {
-      font-family: 'DM Sans', Arial, sans-serif;
-      color: var(--ink);
-      background: var(--white);
-      overflow-x: hidden;
-    }
+    body { font-family: 'DM Sans', Arial, sans-serif; color: var(--ink); background: var(--white); overflow-x: hidden; }
     button, input { font: inherit; }
     button { cursor: pointer; }
     a { color: inherit; text-decoration: none; }
     /* HEADER */
-    .topbar {
-      height: 100px;
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      align-items: center;
-      gap: 24px;
-      padding: 0 30px;
-      border-top: 1px solid var(--line);
-      border-bottom: 1px solid #cfcfcf;
-      background: #fff;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
-    .topbar-left,
-    .topbar-right {
-      display: flex;
-      align-items: center;
-      gap: 18px;
-    }
+    .topbar { height: 100px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 24px; padding: 0 30px; border-top: 1px solid var(--line); border-bottom: 1px solid #cfcfcf; background: #fff; position: sticky; top: 0; z-index: 100; }
+    .topbar-left, .topbar-right { display: flex; align-items: center; gap: 18px; }
     .topbar-right { justify-content: flex-end; }
-    .pill {
-      height: 58px;
-      border: 1px solid #cfcfcf;
-      border-radius: 999px;
-      background: #fff;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      padding: 0 20px;
-      font-size: 18px;
-      color: #222;
-    }
-    .menu-pill {
-      min-width: 152px;
-      justify-content: flex-start;
-    }
-    .hamburger {
-      width: 28px;
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-    }
-    .hamburger span {
-      height: 3px;
-      width: 28px;
-      background: var(--santander-red);
-      border-radius: 2px;
-    }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 31px;
-      font-weight: 400;
-      color: var(--santander-red);
-      white-space: nowrap;
-    }
+    .pill { height: 58px; border: 1px solid #cfcfcf; border-radius: 999px; background: #fff; display: inline-flex; align-items: center; justify-content: center; gap: 12px; padding: 0 20px; font-size: 18px; color: #222; }
+    .menu-pill { min-width: 152px; justify-content: flex-start; }
+    .hamburger { width: 28px; display: flex; flex-direction: column; gap: 5px; }
+    .hamburger span { height: 3px; width: 28px; background: var(--santander-red); border-radius: 2px; }
+    .brand { display: flex; align-items: center; gap: 8px; font-size: 31px; font-weight: 400; color: var(--santander-red); white-space: nowrap; }
     .brand svg { width: 34px; height: 40px; flex: 0 0 auto; }
     .brand strong { font-weight: 700; }
     .brand span { font-weight: 300; }
-    .avatar-pill {
-      padding-left: 12px;
-      padding-right: 18px;
-    }
-    .avatar-mark {
-      width: 38px;
-      height: 38px;
-      border-right: 1px solid #d6d6d6;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--santander-red);
-      font-size: 24px;
-      font-weight: 700;
-      font-style: italic;
-      padding-right: 11px;
-    }
-    .icon-btn {
-      width: 42px;
-      height: 42px;
-      border: 0;
-      background: transparent;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      color: #444;
-      position: relative;
-    }
-    .notification {
-      position: absolute;
-      top: 0;
-      right: 1px;
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      background: var(--santander-red);
-      color: #fff;
-      font-size: 12px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 2px solid #fff;
-    }
+    .avatar-pill { padding-left: 12px; padding-right: 18px; }
+    .avatar-mark { width: 38px; height: 38px; border-right: 1px solid #d6d6d6; display: flex; align-items: center; justify-content: center; color: var(--santander-red); font-size: 24px; font-weight: 700; font-style: italic; padding-right: 11px; }
+    .icon-btn { width: 42px; height: 42px; border: 0; background: transparent; display: inline-flex; align-items: center; justify-content: center; color: #444; position: relative; }
+    .notification { position: absolute; top: 0; right: 1px; width: 22px; height: 22px; border-radius: 50%; background: var(--santander-red); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; border: 2px solid #fff; }
     /* SEARCH */
-    .search-strip {
-      min-height: 126px;
-      background: #f5f6f7;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      border-bottom: 1px solid #ececec;
-    }
-    .search-box {
-      width: min(780px, calc(100vw - 48px));
-      height: 62px;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      color: #777;
-      font-size: 24px;
-    }
+    .search-strip { min-height: 126px; background: #f5f6f7; display: flex; align-items: center; justify-content: center; padding: 20px; border-bottom: 1px solid #ececec; }
+    .search-box { width: min(780px, calc(100vw - 48px)); height: 62px; display: flex; align-items: center; gap: 14px; color: #777; font-size: 24px; }
     .search-box svg { color: #2388ad; flex: 0 0 auto; }
     /* HERO */
-    .hero {
-      display: grid;
-      grid-template-columns: 1.08fr .92fr;
-      min-height: 430px;
-      background:
-        radial-gradient(circle at 88% 24%, rgba(236,0,0,.09), transparent 28%),
-        linear-gradient(135deg, #fff 0%, #fff8f8 62%, #f7f7f7 100%);
-      color: var(--ink);
-      overflow: hidden;
-      border-bottom: 1px solid #ececec;
-      position: relative;
-    }
-    .hero::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      width: 7px;
-      background: var(--santander-red);
-    }
-    .hero-copy {
-      padding: 72px 7%;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-    .eyebrow {
-      display: inline-flex;
-      width: fit-content;
-      padding: 7px 12px;
-      border-radius: 3px;
-      background: #fff0f0;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 1.5px;
-      margin-bottom: 18px;
-      color: #b40000;
-    }
-    .hero h1 {
-      font-size: clamp(36px, 4.5vw, 62px);
-      line-height: 1.05;
-      margin: 0 0 18px;
-      letter-spacing: -1.8px;
-    }
-    .hero p {
-      max-width: 650px;
-      font-size: 18px;
-      line-height: 1.6;
-      margin: 0 0 30px;
-      color: #5f5f5f;
-    }
+    .hero { display: grid; grid-template-columns: 1.08fr .92fr; min-height: 430px; background: radial-gradient(circle at 88% 24%, rgba(236,0,0,.09), transparent 28%), linear-gradient(135deg, #fff 0%, #fff8f8 62%, #f7f7f7 100%); color: var(--ink); overflow: hidden; border-bottom: 1px solid #ececec; position: relative; }
+    .hero::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 7px; background: var(--santander-red); }
+    .hero-copy { padding: 72px 7%; display: flex; flex-direction: column; justify-content: center; }
+    .eyebrow { display: inline-flex; width: fit-content; padding: 7px 12px; border-radius: 3px; background: #fff0f0; font-size: 12px; font-weight: 700; letter-spacing: 1.5px; margin-bottom: 18px; color: #b40000; }
+    .hero h1 { font-size: clamp(36px, 4.5vw, 62px); line-height: 1.05; margin: 0 0 18px; letter-spacing: -1.8px; }
+    .hero p { max-width: 650px; font-size: 18px; line-height: 1.6; margin: 0 0 30px; color: #5f5f5f; }
     .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; }
-    .hero-btn {
-      border: 0;
-      border-radius: 6px;
-      padding: 14px 24px;
-      font-weight: 700;
-      background: var(--santander-red);
-      color: #fff;
-      box-shadow: 0 8px 18px rgba(236,0,0,.18);
-    }
-    .hero-btn.secondary {
-      background: #fff;
-      color: #9d0000;
-      border: 1px solid #e6bcbc;
-    }
-    .hero-visual {
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: radial-gradient(circle at center, rgba(236,0,0,.08), transparent 62%);
-    }
-    .hero-card {
-      width: min(360px, 80%);
-      aspect-ratio: 1.58;
-      border-radius: 20px;
-      background: linear-gradient(145deg, #242424, #070707);
-      box-shadow: 0 30px 60px rgba(0,0,0,.28);
-      padding: 28px;
-      transform: rotate(-4deg);
-      position: relative;
-      overflow: hidden;
-    }
-    .hero-card::after {
-      content: '';
-      position: absolute;
-      width: 240px;
-      height: 240px;
-      border-radius: 50%;
-      background: rgba(236,0,0,.35);
-      right: -85px;
-      top: -80px;
-    }
+    .hero-btn { border: 0; border-radius: 6px; padding: 14px 24px; font-weight: 700; background: var(--santander-red); color: #fff; box-shadow: 0 8px 18px rgba(236,0,0,.18); }
+    .hero-btn.secondary { background: #fff; color: #9d0000; border: 1px solid #e6bcbc; }
+    .hero-visual { position: relative; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at center, rgba(236,0,0,.08), transparent 62%); }
+    .hero-card { width: min(360px, 80%); aspect-ratio: 1.58; border-radius: 20px; background: linear-gradient(145deg, #242424, #070707); box-shadow: 0 30px 60px rgba(0,0,0,.28); padding: 28px; transform: rotate(-4deg); position: relative; overflow: hidden; }
+    .hero-card::after { content: ''; position: absolute; width: 240px; height: 240px; border-radius: 50%; background: rgba(236,0,0,.35); right: -85px; top: -80px; }
     .hero-card-title { font-size: 24px; font-weight: 700; position: relative; z-index: 1; }
     .hero-card-sub { margin-top: 10px; color: rgba(255,255,255,.7); position: relative; z-index: 1; }
     .hero-card-number { position: absolute; bottom: 28px; left: 28px; letter-spacing: 4px; z-index: 1; }
     /* QUICK ACTIONS */
     .quick-section { padding: 54px 7% 70px; }
-    .section-title {
-      color: #666;
-      font-size: 14px;
-      font-weight: 700;
-      letter-spacing: 1.4px;
-      margin-bottom: 24px;
-    }
-    .quick-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 16px;
-    }
-    .quick-card {
-      min-height: 160px;
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      padding: 24px;
-      background: #fff;
-      transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
-    }
-    .quick-card:hover {
-      transform: translateY(-3px);
-      border-color: #f4aaaa;
-      box-shadow: 0 12px 28px rgba(0,0,0,.08);
-    }
+    .section-title { color: #666; font-size: 14px; font-weight: 700; letter-spacing: 1.4px; margin-bottom: 24px; }
+    .quick-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+    .quick-card { min-height: 160px; border: 1px solid #ddd; border-radius: 10px; padding: 24px; background: #fff; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+    .quick-card:hover { transform: translateY(-3px); border-color: #f4aaaa; box-shadow: 0 12px 28px rgba(0,0,0,.08); }
     .quick-icon { font-size: 28px; margin-bottom: 16px; }
     .quick-card h3 { margin: 0 0 8px; font-size: 17px; }
     .quick-card p { margin: 0; color: #747474; line-height: 1.5; font-size: 14px; }
-    footer {
-      border-top: 1px solid #e2e2e2;
-      background: #fafafa;
-      padding: 24px 7%;
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      color: #777;
-      font-size: 12px;
-    }
-    /* CHAT: wrapper controls positioning; SDK controls its own internal layout */
-    #chat-wrapper {
-      visibility: hidden;
-      pointer-events: none;
-      position: fixed;
-      right: 24px;
-      bottom: 24px;
-      width: 400px;
-      height: min(640px, calc(100vh - 48px));
-      z-index: 9999;
-    }
+    footer { border-top: 1px solid #e2e2e2; background: #fafafa; padding: 24px 7%; display: flex; justify-content: space-between; gap: 16px; color: #777; font-size: 12px; }
+    
+    /* CHAT */
+    #chat-wrapper { visibility: hidden; pointer-events: none; position: fixed; right: 24px; bottom: 24px; width: 400px; height: min(640px, calc(100vh - 48px)); z-index: 9999; }
     chat-messenger {
-      display: block !important;
-      width: 400px !important;
-      max-width: 400px !important;
-      height: 100% !important;
-      min-height: 0 !important;
-      /* Containers / Surfaces */
+      display: block !important; width: 400px !important; max-width: 400px !important; height: 100% !important; min-height: 0 !important;
       --chat-messenger-color--surface: #fffafa;
       --chat-messenger-color--surface-container: #ffffff;
       --chat-messenger-color--surface-container-high: #fff2f2;
-      /* Brand / Accent */
       --chat-messenger-color--primary: #ec0000;
       --chat-messenger-color--primary-container: #fff0f0;
       --chat-messenger-color--secondary: #ffe5e5;
-      /* Text & Icons */
       --chat-messenger-color--on-surface: #242424;
       --chat-messenger-color--on-surface-variant: #6f6f6f;
       --chat-messenger-color--on-primary: #ffffff;
       --chat-messenger-color--on-primary-container: #8f0000;
       --chat-messenger-color--on-secondary: #8f0000;
-      /* States: bumped opacity from the 8% default so hover reads as red, not gray */
       --chat-messenger-color--state-layer-on-surface: rgba(236,0,0,.16);
       --chat-messenger-color--state-layer-on-primary: rgba(255,255,255,.12);
       --chat-messenger-color--state-layer-on-secondary: rgba(236,0,0,.16);
       --chat-messenger-color--state-on-surface-mute: rgba(68,71,70,.38);
-      /* Utility */
       --chat-messenger-color--outline: #ded4d4;
       --chat-messenger-color--outline-variant: rgba(236,0,0,.14);
       --chat-messenger-color--outline-active: #ec0000;
@@ -1202,11 +719,6 @@
       --chat-messenger-color--on-error-container: #8c1d18;
       --chat-messenger-color--link: #c80000;
       --chat-messenger-font-family: 'DM Sans', Arial, sans-serif;
-      /* Quick actions render as <md-outlined-button> (Material Web). --md-sys-color-primary
-         drives both label text AND hover/focus state-layer color inside that component's
-         own shadow root, and chat-messenger falls it back to --on-surface (gray) unless we
-         set these Material-native custom properties. Custom properties inherit through
-         shadow boundaries even though class selectors don't, so this reaches the real button. */
       --md-outlined-button-hover-label-text-color: #b00000;
       --md-outlined-button-hover-state-layer-color: #ec0000;
       --md-outlined-button-hover-state-layer-opacity: 0.12;
@@ -1215,7 +727,6 @@
       --md-outlined-button-pressed-state-layer-color: #ec0000;
       --md-outlined-button-pressed-state-layer-opacity: 0.16;
       --chat-messenger-color--action-button-outline-color: rgba(236,0,0,.22);
-      /* Shape: corner-value-large is the documented token for carousel/quick-action cards */
       --chat-messenger-shape--corner-value-small: 8px;
       --chat-messenger-shape--corner-value-medium: 16px;
       --chat-messenger-shape--corner-value-large: 20px;
@@ -1223,99 +734,16 @@
       --chat-messenger-shape--corner-fully-rounded: 100px;
       --chat-messenger-elevation: 0 14px 38px rgba(0,0,0,.16), 0 3px 12px rgba(236,0,0,.14);
     }
-    chat-messenger-container {
-      display: flex !important;
-      flex-direction: column !important;
-      height: 100% !important;
-      min-height: 0 !important;
-    }
-    #fab-wrapper {
-      position: fixed;
-      right: 28px;
-      bottom: 28px;
-      z-index: 10000;
-    }
-    #chat-fab {
-      width: 66px;
-      height: 66px;
-      border-radius: 50%;
-      border: 0;
-      background: var(--santander-red);
-      box-shadow: 0 8px 24px rgba(236,0,0,.34);
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: transform .18s ease;
-    }
+    chat-messenger-container { display: flex !important; flex-direction: column !important; height: 100% !important; min-height: 0 !important; }
+    #fab-wrapper { position: fixed; right: 28px; bottom: 28px; z-index: 10000; }
+    #chat-fab { width: 66px; height: 66px; border-radius: 50%; border: 0; background: var(--santander-red); box-shadow: 0 8px 24px rgba(236,0,0,.34); color: #fff; display: flex; align-items: center; justify-content: center; transition: transform .18s ease; }
     #chat-fab:hover { transform: scale(1.06); }
-    /* Custom mic button — mounted inside the active SDK composer shadow root. */
-    #custom-mic-btn {
-      position: fixed;
-      left: -9999px;
-      top: -9999px;
-      z-index: 2147483000;
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      border: 1px solid #dfd3d3;
-      background: #ffffff;
-      color: #666666;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      padding: 0;
-      box-sizing: border-box;
-      transition: background .15s ease, border-color .15s ease, color .15s ease, opacity .15s ease;
-    }
-    #custom-mic-btn:hover {
-      border-color: #ec0000;
-      color: #ec0000;
-    }
-    #custom-mic-btn.recording {
-      background: #ec0000;
-      border-color: #ec0000;
-      color: #ffffff;
-      animation: micPulse 1.1s ease-in-out infinite;
-    }
-    @keyframes micPulse {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(236,0,0,.35); }
-      50% { box-shadow: 0 0 0 8px rgba(236,0,0,0); }
-    }
-    @media (max-width: 1100px) {
-      .topbar { grid-template-columns: auto 1fr auto; }
-      .brand { font-size: 25px; }
-      .topbar-right .pill:first-child, .icon-btn:nth-of-type(n+2) { display: none; }
-      .hero { grid-template-columns: 1fr; }
-      .hero-visual { display: none; }
-      .quick-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
-    }
-    @media (max-width: 620px) {
-      .topbar { height: 72px; padding: 0 14px; gap: 10px; }
-      .menu-pill { min-width: 0; width: 48px; height: 48px; padding: 0; }
-      .menu-pill .menu-label { display: none; }
-      .brand { font-size: 19px; }
-      .brand svg { width: 25px; height: 30px; }
-      .avatar-pill, .topbar-right .icon-btn { display: none; }
-      .search-strip { min-height: 92px; }
-      .search-box { font-size: 17px; }
-      .hero-copy { padding: 52px 24px; }
-      .quick-section { padding: 40px 20px 56px; }
-      .quick-grid { grid-template-columns: 1fr; }
-      footer { flex-direction: column; }
-      #chat-wrapper {
-        right: 12px;
-        bottom: 12px;
-        width: calc(100vw - 24px);
-        height: min(680px, calc(100dvh - 24px));
-      }
-      chat-messenger {
-        width: 100% !important;
-        max-width: 100% !important;
-      }
-      #fab-wrapper { right: 18px; bottom: 18px; }
-    }
+    #custom-mic-btn { position: fixed; left: -9999px; top: -9999px; z-index: 2147483000; width: 36px; height: 36px; border-radius: 50%; border: 1px solid #dfd3d3; background: #ffffff; color: #666666; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; box-sizing: border-box; transition: background .15s ease, border-color .15s ease, color .15s ease, opacity .15s ease; }
+    #custom-mic-btn:hover { border-color: #ec0000; color: #ec0000; }
+    #custom-mic-btn.recording { background: #ec0000; border-color: #ec0000; color: #ffffff; animation: micPulse 1.1s ease-in-out infinite; }
+    @keyframes micPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(236,0,0,.35); } 50% { box-shadow: 0 0 0 8px rgba(236,0,0,0); } }
+    @media (max-width: 1100px) { .topbar { grid-template-columns: auto 1fr auto; } .brand { font-size: 25px; } .topbar-right .pill:first-child, .icon-btn:nth-of-type(n+2) { display: none; } .hero { grid-template-columns: 1fr; } .hero-visual { display: none; } .quick-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+    @media (max-width: 620px) { .topbar { height: 72px; padding: 0 14px; gap: 10px; } .menu-pill { min-width: 0; width: 48px; height: 48px; padding: 0; } .menu-pill .menu-label { display: none; } .brand { font-size: 19px; } .brand svg { width: 25px; height: 30px; } .avatar-pill, .topbar-right .icon-btn { display: none; } .search-strip { min-height: 92px; } .search-box { font-size: 17px; } .hero-copy { padding: 52px 24px; } .quick-section { padding: 40px 20px 56px; } .quick-grid { grid-template-columns: 1fr; } footer { flex-direction: column; } #chat-wrapper { right: 12px; bottom: 12px; width: calc(100vw - 24px); height: min(680px, calc(100dvh - 24px)); } chat-messenger { width: 100% !important; max-width: 100% !important; } #fab-wrapper { right: 18px; bottom: 18px; } }
   </style>
 </head>
 <body>
@@ -1351,12 +779,14 @@
       </button>
     </div>
   </header>
+
   <section class="search-strip">
     <div class="search-box">
       <svg width="31" height="31" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
       <span>Buscar operaciones, productos, secciones y consultas</span>
     </div>
   </section>
+
   <main>
     <section class="hero">
       <div class="hero-copy">
@@ -1376,6 +806,7 @@
         </div>
       </div>
     </section>
+
     <section class="quick-section">
       <div class="section-title">ACCESOS RÁPIDOS</div>
       <div class="quick-grid">
@@ -1402,10 +833,12 @@
       </div>
     </section>
   </main>
+
   <footer>
     <span>© 2026 Banco Santander. Demo de experiencia conversacional.</span>
     <span>Asistente impulsado por Google Cloud</span>
   </footer>
+
   <script>
     window.addEventListener('chat-messenger-loaded', function () {
       try {
@@ -1424,11 +857,7 @@
       }
     });
 
-    // ---- Santander card comparison: response-event bridge ----------------
-    // The Widget Tool returns the business payload correctly, but CXAS can omit
-    // the fixed custom-template `name`. This frontend adapter reads the tool call
-    // from the SDK response event, injects the deterministic Web Component name,
-    // deduplicates by tool-call id and renders the comparison with renderCustomCard.
+    // ---- Santander card comparison: response-event bridge (V2 ROBUSTA) ----
     (function installSantanderCardComparisonEventBridge() {
       const processedToolCalls = new Set();
       const RESPONSE_EVENTS = [
@@ -1438,20 +867,17 @@
 
       function sanitizeLiveArgs(args) {
         if (args == null) return args;
-
         try {
           if (typeof args === 'string') {
             const cleanedText = args.replace(/<ctrl(\d+)>/g, function (_, code) {
               return String.fromCharCode(Number(code));
             });
-
             try {
               return JSON.parse(cleanedText);
             } catch (_) {
               return cleanedText;
             }
           }
-
           if (typeof args === 'object') {
             const cleanedJson = JSON.stringify(args).replace(
               /<ctrl(\d+)>/g,
@@ -1461,143 +887,84 @@
             );
             return JSON.parse(cleanedJson);
           }
-        } catch (error) {
-          console.warn(
-            '[Santander Widget Bridge] No se pudo normalizar el payload.',
-            error
-          );
-        }
-
+        } catch (error) {}
         return args;
-      }
-
-      function isValidComparisonPayload(payload) {
-        return Boolean(
-          payload &&
-          typeof payload === 'object' &&
-          Array.isArray(payload.productDetails) &&
-          payload.productDetails.length > 0 &&
-          Array.isArray(payload.features)
-        );
-      }
-
-      function unwrapPayload(value) {
-        const cleaned = sanitizeLiveArgs(value);
-        if (!cleaned || typeof cleaned !== 'object') return null;
-
-        const candidates = [
-          cleaned.payload,
-          cleaned.result && cleaned.result.payload,
-          cleaned.response && cleaned.response.payload,
-          cleaned.output && cleaned.output.payload,
-          cleaned
-        ];
-
-        for (const candidate of candidates) {
-          const normalized = sanitizeLiveArgs(candidate);
-          if (isValidComparisonPayload(normalized)) return normalized;
-        }
-
-        return null;
       }
 
       function getDiagnosticMessages(event) {
         const detail = event && event.detail ? event.detail : {};
         const messages = [];
-
-        const outputs = detail.raw && Array.isArray(detail.raw.outputs)
-          ? detail.raw.outputs
-          : [];
-
+        const outputs = detail.raw && Array.isArray(detail.raw.outputs) ? detail.raw.outputs : [];
         outputs.forEach(function (output) {
           const diagnosticMessages =
             output && output.diagnosticInfo && Array.isArray(output.diagnosticInfo.messages)
-              ? output.diagnosticInfo.messages
-              : [];
+              ? output.diagnosticInfo.messages : [];
           messages.push.apply(messages, diagnosticMessages);
         });
-
         const alternateGroups = [
           detail.response && detail.response.queryResult && detail.response.queryResult.diagnosticInfo
-            ? detail.response.queryResult.diagnosticInfo.messages
-            : null,
+            ? detail.response.queryResult.diagnosticInfo.messages : null,
           detail.queryResult && detail.queryResult.diagnosticInfo
-            ? detail.queryResult.diagnosticInfo.messages
-            : null,
+            ? detail.queryResult.diagnosticInfo.messages : null,
           detail.raw && detail.raw.queryResult && detail.raw.queryResult.diagnosticInfo
-            ? detail.raw.queryResult.diagnosticInfo.messages
-            : null,
+            ? detail.raw.queryResult.diagnosticInfo.messages : null,
           detail.raw && detail.raw.diagnosticInfo
-            ? detail.raw.diagnosticInfo.messages
-            : null
+            ? detail.raw.diagnosticInfo.messages : null
         ];
-
         alternateGroups.forEach(function (group) {
           if (Array.isArray(group)) messages.push.apply(messages, group);
         });
-
         return messages;
       }
 
       function getToolEntries(event) {
         const entries = [];
-
         getDiagnosticMessages(event).forEach(function (message) {
-          const chunks = message && Array.isArray(message.chunks)
-            ? message.chunks
-            : [];
-
+          const chunks = message && Array.isArray(message.chunks) ? message.chunks : [];
           chunks.forEach(function (chunk) {
             if (chunk && chunk.toolCall) {
-              entries.push({
-                kind: 'toolCall',
-                value: chunk.toolCall
-              });
+              entries.push({ kind: 'toolCall', value: chunk.toolCall });
             }
-
             if (chunk && chunk.toolResponse) {
-              entries.push({
-                kind: 'toolResponse',
-                value: chunk.toolResponse
-              });
+              entries.push({ kind: 'toolResponse', value: chunk.toolResponse });
             }
           });
         });
-
         return entries;
       }
 
       function getDisplayName(entry) {
         const value = entry && entry.value ? entry.value : {};
-        return String(
-          value.displayName ||
-          value.name ||
-          value.toolName ||
-          ''
-        ).trim();
+        return String(value.displayName || value.name || value.toolName || '').trim();
       }
 
+      // V2: Extractor de payload con soporte a envoltura {payload: {...}}
       function getEntryPayload(entry) {
         const value = entry && entry.value ? entry.value : {};
+        let rawArgs = (entry.kind === 'toolCall') ? value.args : value.response;
+        
+        let args = sanitizeLiveArgs(rawArgs);
+        if (!args) return null;
 
-        if (entry.kind === 'toolCall') {
-          return unwrapPayload(value.args);
+        if (args.payload && typeof args.payload === 'object') {
+          return {
+            title: args.payload.title || "Tarjetas recomendadas para vos",
+            productDetails: args.payload.productDetails,
+            features: args.payload.features,
+            ctaLabel: args.payload.ctaLabel || args.ctaLabel || "Solicitar"
+          };
         }
 
-        return unwrapPayload(value.response);
+        if (Array.isArray(args.productDetails)) {
+          return args;
+        }
+        return null;
       }
 
       function getEntryId(entry, payload) {
         const value = entry && entry.value ? entry.value : {};
-        const explicitId = String(
-          value.id ||
-          value.toolCallId ||
-          value.tool_call_id ||
-          ''
-        ).trim();
-
+        const explicitId = String(value.id || value.toolCallId || value.tool_call_id || '').trim();
         if (explicitId) return explicitId;
-
         const firstProduct = payload.productDetails[0] || {};
         return [
           firstProduct.productId || firstProduct.title || 'comparison',
@@ -1609,41 +976,27 @@
 
       function renderComparison(chatMessenger, payload, callId) {
         if (!chatMessenger || typeof chatMessenger.renderCustomCard !== 'function') {
-          console.error(
-            '[Santander Widget Bridge] chat-messenger.renderCustomCard no está disponible.'
-          );
+          console.error('[Santander Widget Bridge] chat-messenger.renderCustomCard no está disponible.');
           processedToolCalls.delete(callId);
           return;
         }
-
         const renderedPayload = Object.assign({}, payload, {
           ctaLabel: payload.ctaLabel || 'Solicitar'
         });
 
-        chatMessenger.renderCustomCard([
-          {
-            type: 'custom_template',
-            name: 'santander-card-comparison',
-            payload: renderedPayload
-          }
-        ]);
-
-        console.log(
-          '[Santander Widget Bridge] Comparador renderizado desde toolCall:',
-          callId
-        );
+        chatMessenger.renderCustomCard([{
+          type: 'custom_template',
+          name: 'santander-card-comparison',
+          payload: renderedPayload
+        }]);
+        console.log('[Santander Widget Bridge] Comparador renderizado con éxito desde toolCall:', callId);
       }
 
       function handleResponseEvent(event, chatMessenger) {
         const entries = getToolEntries(event);
         if (!entries.length) return;
 
-        console.debug(
-          '[Santander Widget Bridge] Evento recibido:',
-          event.type,
-          'tools:',
-          entries.length
-        );
+        console.debug('[Santander Widget Bridge] Evento capturado:', event.type, 'Tools:', entries.length);
 
         entries.forEach(function (entry) {
           const displayName = getDisplayName(entry);
@@ -1651,10 +1004,7 @@
 
           const payload = getEntryPayload(entry);
           if (!payload) {
-            console.warn(
-              '[Santander Widget Bridge] Se detectó la tool, pero no un payload comparativo válido.',
-              entry.value
-            );
+            console.warn('[Santander Widget Bridge] Payload interno inválido para santander_card_comparison.', entry.value);
             return;
           }
 
@@ -1662,33 +1012,41 @@
           if (processedToolCalls.has(callId)) return;
           processedToolCalls.add(callId);
 
-          // Let the current SDK response finish its DOM update before inserting
-          // the custom card immediately below the agent framing message.
           window.setTimeout(function () {
             renderComparison(chatMessenger, payload, callId);
-          }, 80);
+          }, 100);
         });
       }
 
-      function attachResponseListeners(chatMessenger) {
-        if (!chatMessenger || chatMessenger.__santanderEventBridgeInstalled) return;
+      // V2: Delegación global robusta
+      function bootstrapBridge() {
+        const chatMessenger = document.querySelector('chat-messenger');
+        
+        if (!chatMessenger) {
+          setTimeout(bootstrapBridge, 50);
+          return;
+        }
+
+        if (chatMessenger.__santanderEventBridgeInstalled) return;
         chatMessenger.__santanderEventBridgeInstalled = true;
 
-        const container = document.querySelector('chat-messenger-container');
-        const targets = [chatMessenger, container].filter(Boolean);
+        RESPONSE_EVENTS.forEach(function (eventName) {
+          document.addEventListener(eventName, function (event) {
+            handleResponseEvent(event, chatMessenger);
+          }, true); // Fase de captura activa
 
-        targets.forEach(function (target) {
-          RESPONSE_EVENTS.forEach(function (eventName) {
-            target.addEventListener(eventName, function (event) {
-              handleResponseEvent(event, chatMessenger);
-            });
+          chatMessenger.addEventListener(eventName, function (event) {
+            handleResponseEvent(event, chatMessenger);
           });
         });
 
-        console.log(
-          '[Santander Widget Bridge][event v1] Activo. Escuchando:',
-          RESPONSE_EVENTS.join(', ')
-        );
+        console.log('[Santander Widget Bridge] Inicializado con éxito. Escuchando eventos conversacionales.');
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bootstrapBridge);
+      } else {
+        bootstrapBridge();
       }
 
       function sendSelectedCard(event) {
@@ -1700,7 +1058,6 @@
         ).trim();
 
         if (!utterance) return;
-
         if (typeof window.sendSantanderQuery === 'function') {
           window.sendSantanderQuery(utterance);
           return;
@@ -1711,27 +1068,17 @@
           chatMessenger.sendQuery(utterance);
           return;
         }
-
-        console.error(
-          '[Santander Widget Bridge] No se pudo enviar la tarjeta seleccionada al agente.'
-        );
       }
 
       window.addEventListener('card-selected', sendSelectedCard);
-
-      window.addEventListener('chat-messenger-loaded', function () {
-        attachResponseListeners(document.querySelector('chat-messenger'));
-      });
     })();
 
-    // ---- Deep Shadow DOM helpers + query delivery for SDK v1.16 ----
+    // ---- Deep Shadow DOM helpers + query delivery ----
     window.santanderDeepQuery = function santanderDeepQuery(root, selector) {
       if (!root) return null;
-
       try {
         const directMatch = root.querySelector && root.querySelector(selector);
         if (directMatch) return directMatch;
-
         const elements = root.querySelectorAll ? root.querySelectorAll('*') : [];
         for (const element of elements) {
           if (element.shadowRoot) {
@@ -1739,104 +1086,73 @@
             if (nestedMatch) return nestedMatch;
           }
         }
-      } catch (error) {
-        console.warn('[Santander] Error buscando dentro del Shadow DOM:', error);
-      }
-
+      } catch (error) {}
       return null;
     };
-
     window.santanderDeepQueryAll = function santanderDeepQueryAll(root, selector, output, visitedRoots) {
       const results = output || [];
       const visited = visitedRoots || new WeakSet();
       if (!root || visited.has(root)) return results;
       visited.add(root);
-
       try {
         if (root.querySelectorAll) {
           root.querySelectorAll(selector).forEach(function (match) {
             if (!results.includes(match)) results.push(match);
           });
-
           root.querySelectorAll('*').forEach(function (element) {
             if (element.shadowRoot) {
               santanderDeepQueryAll(element.shadowRoot, selector, results, visited);
             }
           });
         }
-      } catch (error) {
-        console.warn('[Santander] Error buscando múltiples elementos dentro del Shadow DOM:', error);
-      }
-
+      } catch (error) {}
       return results;
     };
-
     window.santanderComposedClosest = function (element, selector) {
       let current = element;
-
       while (current) {
         if (current instanceof Element && current.matches(selector)) return current;
-
         if (current.parentElement) {
           current = current.parentElement;
           continue;
         }
-
         const root = current.getRootNode ? current.getRootNode() : null;
         current = root instanceof ShadowRoot ? root.host : null;
       }
-
       return null;
     };
-
     window.santanderIsVisible = function (element) {
       if (!(element instanceof Element) || !element.isConnected) return false;
-
       const rect = element.getBoundingClientRect();
       if (rect.width < 12 || rect.height < 12) return false;
       if (rect.bottom <= 0 || rect.right <= 0 || rect.top >= window.innerHeight || rect.left >= window.innerWidth) return false;
-
       const style = window.getComputedStyle(element);
       return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) !== 0;
     };
-
     window.getSantanderComposerParts = function () {
       const inputSelector = 'textarea, input:not([type="hidden"]):not([type="file"]), [contenteditable="true"], [contenteditable=""]';
       const sendSelector = [
-        'button.send',
-        'button[type="submit"]',
-        'button[aria-label*="send" i]',
-        'button[aria-label*="enviar" i]',
-        '[role="button"][aria-label*="send" i]',
-        '[role="button"][aria-label*="enviar" i]',
-        'chat-messenger-send-button'
+        'button.send', 'button[type="submit"]', 'button[aria-label*="send" i]',
+        'button[aria-label*="enviar" i]', '[role="button"][aria-label*="send" i]',
+        '[role="button"][aria-label*="enviar" i]', 'chat-messenger-send-button'
       ].join(', ');
 
       const composers = window.santanderDeepQueryAll(document, 'chat-messenger-composer');
       const inputCandidates = [];
-
       composers.forEach(function (composer) {
         const root = composer.shadowRoot || composer;
         window.santanderDeepQueryAll(root, inputSelector).forEach(function (input) {
           if (!inputCandidates.includes(input)) inputCandidates.push(input);
         });
       });
-
-      // Defensive fallback for SDK revisions that portal the input without exposing
-      // chat-messenger-composer as the immediate composed ancestor.
       if (!inputCandidates.length) {
         window.santanderDeepQueryAll(document, inputSelector).forEach(function (input) {
           if (!inputCandidates.includes(input)) inputCandidates.push(input);
         });
       }
-
       const visibleInputs = inputCandidates.filter(window.santanderIsVisible);
-      if (!visibleInputs.length) {
-        return { input: null, sendButton: null, composer: null, mountRoot: null };
-      }
+      if (!visibleInputs.length) return { input: null, sendButton: null, composer: null, mountRoot: null };
 
-      // Expanded and compact composers can coexist briefly. Prefer the active field:
-      // composer ancestry first, then the widest and lowest visible candidate.
       visibleInputs.sort(function (a, b) {
         function score(element) {
           const rect = element.getBoundingClientRect();
@@ -1850,22 +1166,17 @@
         }
         return score(b) - score(a);
       });
-
       const input = visibleInputs[0];
       const composer = window.santanderComposedClosest(input, 'chat-messenger-composer');
       const composerRoot = composer ? (composer.shadowRoot || composer) : input.getRootNode();
-      let sendCandidates = window.santanderDeepQueryAll(composerRoot, sendSelector)
-        .filter(function (element) {
+      let sendCandidates = window.santanderDeepQueryAll(composerRoot, sendSelector).filter(function (element) {
+        return element.id !== 'custom-mic-btn' && window.santanderIsVisible(element);
+      });
+      if (!sendCandidates.length) {
+        sendCandidates = window.santanderDeepQueryAll(document, sendSelector).filter(function (element) {
           return element.id !== 'custom-mic-btn' && window.santanderIsVisible(element);
         });
-
-      if (!sendCandidates.length) {
-        sendCandidates = window.santanderDeepQueryAll(document, sendSelector)
-          .filter(function (element) {
-            return element.id !== 'custom-mic-btn' && window.santanderIsVisible(element);
-          });
       }
-
       const inputRect = input.getBoundingClientRect();
       sendCandidates.sort(function (a, b) {
         function distance(element) {
@@ -1877,143 +1188,78 @@
         }
         return distance(a) - distance(b);
       });
-
       const sendButton = sendCandidates[0] || null;
       let mountRoot = null;
-
-      // Mount at composer level, not inside the send button's own tiny shadow root.
-      // This keeps the mic in the SDK's expanded top layer without clipping it.
       if (composer && composer.shadowRoot) {
         mountRoot = composer.shadowRoot;
       } else if (composer) {
         const root = composer.getRootNode ? composer.getRootNode() : null;
         mountRoot = root instanceof ShadowRoot ? root : null;
       }
-
       if (!mountRoot) {
         const root = input.getRootNode ? input.getRootNode() : null;
         mountRoot = root instanceof ShadowRoot ? root : document;
       }
-
       return { input, sendButton, composer, mountRoot };
     };
-
     window.getSantanderChatInput = function () {
       const parts = window.getSantanderComposerParts();
-      if (!parts.input) {
-        console.warn('[Santander] No se encontró el campo de texto visible del composer.');
-      }
       return parts.input;
     };
-
     window.setSantanderChatInput = function (inputElement, text) {
       if (!inputElement) return false;
-
       inputElement.focus();
-
       if (inputElement.matches('[contenteditable]')) {
         inputElement.textContent = text;
       } else {
-        const prototype = inputElement instanceof HTMLTextAreaElement
-          ? HTMLTextAreaElement.prototype
-          : HTMLInputElement.prototype;
+        const prototype = inputElement instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
         const valueSetter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
-
-        if (valueSetter) {
-          valueSetter.call(inputElement, text);
-        } else {
-          inputElement.value = text;
-        }
+        if (valueSetter) valueSetter.call(inputElement, text);
+        else inputElement.value = text;
       }
-
-      inputElement.dispatchEvent(new InputEvent('input', {
-        bubbles: true,
-        composed: true,
-        inputType: 'insertText',
-        data: text
-      }));
-
-      inputElement.dispatchEvent(new Event('change', {
-        bubbles: true,
-        composed: true
-      }));
-
+      inputElement.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, inputType: 'insertText', data: text }));
+      inputElement.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
       return true;
     };
-
     window.sendSantanderQuery = function (text) {
       const cleanText = String(text || '').trim();
-      if (!cleanText) {
-        console.warn('[Santander] Se intentó enviar un mensaje vacío.');
-        return false;
-      }
-
+      if (!cleanText) return false;
       const parts = window.getSantanderComposerParts();
       const inputElement = parts.input;
-
-      if (!inputElement) {
-        console.error('[Santander] No se pudo resolver el input visible para enviar el mensaje.');
-        return false;
-      }
-
+      if (!inputElement) return false;
       window.setSantanderChatInput(inputElement, cleanText);
-      console.log('[Santander] Texto cargado en el composer:', cleanText);
-
-      // Give Lit / the SDK one render cycle to enable the active send control.
       setTimeout(function () {
         const refreshedParts = window.getSantanderComposerParts();
         const sendButton = refreshedParts.sendButton;
-
         if (sendButton && !sendButton.disabled && sendButton.getAttribute('aria-disabled') !== 'true') {
-          console.log('[Santander] Botón de envío visible encontrado; ejecutando click.');
           sendButton.click();
           return;
         }
-
-        console.warn('[Santander] Botón de envío no encontrado o deshabilitado; usando Enter.');
         for (const eventName of ['keydown', 'keypress', 'keyup']) {
-          inputElement.dispatchEvent(new KeyboardEvent(eventName, {
-            key: 'Enter',
-            code: 'Enter',
-            keyCode: 13,
-            which: 13,
-            bubbles: true,
-            composed: true,
-            cancelable: true
-          }));
+          inputElement.dispatchEvent(new KeyboardEvent(eventName, { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, composed: true, cancelable: true }));
         }
       }, 100);
-
       return true;
     };
-
     function openSantanderChat(intent) {
       const wrapper = document.getElementById('chat-wrapper');
       const fabWrapper = document.getElementById('fab-wrapper');
       const container = document.querySelector('chat-messenger-container');
-      wrapper.style.visibility = 'visible';
-      wrapper.style.pointerEvents = 'auto';
-      fabWrapper.style.display = 'none';
+      wrapper.style.visibility = 'visible'; wrapper.style.pointerEvents = 'auto'; fabWrapper.style.display = 'none';
       if (container) container.setAttribute('window-opened', '');
       if (typeof window.scheduleSantanderMicPosition === 'function') window.scheduleSantanderMicPosition();
       if (intent) setTimeout(() => window.sendSantanderQuery(intent), 500);
     }
-
     function closeSantanderChat() {
       const wrapper = document.getElementById('chat-wrapper');
       const fabWrapper = document.getElementById('fab-wrapper');
-      wrapper.style.visibility = 'hidden';
-      wrapper.style.pointerEvents = 'none';
-      fabWrapper.style.display = 'block';
+      wrapper.style.visibility = 'hidden'; wrapper.style.pointerEvents = 'none'; fabWrapper.style.display = 'block';
       if (typeof window.hideSantanderMicButton === 'function') window.hideSantanderMicButton();
     }
-
     window.addEventListener('chat-messenger-loaded', function () {
       const messenger = document.querySelector('chat-messenger');
       const container = document.querySelector('chat-messenger-container');
-      if (messenger) {
-        messenger.addEventListener('chat-messenger-close', closeSantanderChat);
-      }
+      if (messenger) messenger.addEventListener('chat-messenger-close', closeSantanderChat);
       if (container) {
         new MutationObserver(function () {
           if (!container.hasAttribute('window-opened')) closeSantanderChat();
@@ -2025,573 +1271,216 @@
     document.addEventListener('DOMContentLoaded', function () {
       const micBtn = document.getElementById('custom-mic-btn');
       const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-      if (!micBtn) {
-        console.warn('[Santander] No se encontró el botón custom-mic-btn.');
-        return;
-      }
-
-      if (!SpeechRecognitionCtor) {
-        micBtn.style.display = 'none';
-        console.warn('[Santander] Web Speech API no está soportada en este navegador.');
-        return;
-      }
-
+      if (!micBtn) return;
+      if (!SpeechRecognitionCtor) { micBtn.style.display = 'none'; return; }
+      
       window.activeRecognition = null;
-      let isRecording = false;
-      let latestTranscript = '';
-      let sendWhenRecognitionEnds = false;
-      let autoConversationEnabled = false;
-      let isAgentSpeaking = false;
-      let restartMicTimer = null;
-      let recognitionEndedByNoSpeech = false;
-      let noSpeechRetryCount = 0;
-
+      let isRecording = false, latestTranscript = '', sendWhenRecognitionEnds = false, autoConversationEnabled = false, isAgentSpeaking = false, restartMicTimer = null, recognitionEndedByNoSpeech = false, noSpeechRetryCount = 0;
       const styledMicRoots = new WeakSet();
-      const MIC_SIZE = 36;
-      const MIC_SEND_GAP = 7;
+      const MIC_SIZE = 36, MIC_SEND_GAP = 7;
 
       function injectMicStyles(root) {
         if (!(root instanceof ShadowRoot) || styledMicRoots.has(root)) return;
         styledMicRoots.add(root);
-
         const style = document.createElement('style');
         style.setAttribute('data-santander-mic-style', '');
         style.textContent = [
-          '#custom-mic-btn {',
-          '  all: unset;',
-          '  position: fixed !important;',
-          '  left: -9999px;',
-          '  top: -9999px;',
-          '  z-index: 2147483000 !important;',
-          '  width: 36px;',
-          '  height: 36px;',
-          '  box-sizing: border-box;',
-          '  border-radius: 50%;',
-          '  border: 1px solid #dfd3d3;',
-          '  background: #ffffff;',
-          '  color: #666666;',
-          '  display: flex;',
-          '  align-items: center;',
-          '  justify-content: center;',
-          '  cursor: pointer;',
-          '  opacity: 0;',
-          '  pointer-events: none;',
-          '  transition: background .15s ease, border-color .15s ease, color .15s ease, opacity .15s ease;',
-          '}',
+          '#custom-mic-btn { all: unset; position: fixed !important; left: -9999px; top: -9999px; z-index: 2147483000 !important; width: 36px; height: 36px; box-sizing: border-box; border-radius: 50%; border: 1px solid #dfd3d3; background: #ffffff; color: #666666; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; pointer-events: none; transition: background .15s ease, border-color .15s ease, color .15s ease, opacity .15s ease; }',
           '#custom-mic-btn:hover { border-color: #ec0000; color: #ec0000; }',
-          '#custom-mic-btn.recording {',
-          '  background: #ec0000;',
-          '  border-color: #ec0000;',
-          '  color: #ffffff;',
-          '  animation: santanderMicPulse 1.1s ease-in-out infinite;',
-          '}',
+          '#custom-mic-btn.recording { background: #ec0000; border-color: #ec0000; color: #ffffff; animation: santanderMicPulse 1.1s ease-in-out infinite; }',
           '#custom-mic-btn svg { width: 17px; height: 17px; pointer-events: none; }',
-          '@keyframes santanderMicPulse {',
-          '  0%, 100% { box-shadow: 0 0 0 0 rgba(236,0,0,.35); }',
-          '  50% { box-shadow: 0 0 0 8px rgba(236,0,0,0); }',
-          '}'
+          '@keyframes santanderMicPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(236,0,0,.35); } 50% { box-shadow: 0 0 0 8px rgba(236,0,0,0); } }'
         ].join('\n');
         root.appendChild(style);
       }
-
       function mountMicInActiveComposer(root) {
         if (root instanceof ShadowRoot) {
           injectMicStyles(root);
           if (micBtn.getRootNode() !== root) root.appendChild(micBtn);
           return;
         }
-
         const wrapper = document.getElementById('chat-wrapper');
         if (wrapper && micBtn.parentNode !== wrapper) wrapper.prepend(micBtn);
       }
-
-      function hideMicButton() {
-        micBtn.style.opacity = '0';
-        micBtn.style.pointerEvents = 'none';
-        micBtn.style.left = '-9999px';
-        micBtn.style.top = '-9999px';
-      }
+      function hideMicButton() { micBtn.style.opacity = '0'; micBtn.style.pointerEvents = 'none'; micBtn.style.left = '-9999px'; micBtn.style.top = '-9999px'; }
       window.hideSantanderMicButton = hideMicButton;
-
       function positionMicButton() {
         const wrapper = document.getElementById('chat-wrapper');
         const parts = window.getSantanderComposerParts && window.getSantanderComposerParts();
         const inputElement = parts && parts.input;
-
-        if (!wrapper || wrapper.style.visibility === 'hidden' || !inputElement) {
-          hideMicButton();
-          return;
-        }
-
+        if (!wrapper || wrapper.style.visibility === 'hidden' || !inputElement) { hideMicButton(); return; }
         const inputRect = inputElement.getBoundingClientRect();
-        if (!inputRect.width || !inputRect.height) {
-          hideMicButton();
-          return;
-        }
-
+        if (!inputRect.width || !inputRect.height) { hideMicButton(); return; }
         mountMicInActiveComposer(parts.mountRoot);
-
-        const sendRect = parts.sendButton && window.santanderIsVisible(parts.sendButton)
-          ? parts.sendButton.getBoundingClientRect()
-          : null;
+        const sendRect = parts.sendButton && window.santanderIsVisible(parts.sendButton) ? parts.sendButton.getBoundingClientRect() : null;
         const anchorRect = sendRect || inputRect;
-
-        // Put the mic immediately before the real send control. This is farther
-        // right than the previous input.right - 72 calculation and works in both
-        // compact and expanded layouts.
-        let left = sendRect
-          ? sendRect.left - MIC_SIZE - MIC_SEND_GAP
-          : inputRect.right - MIC_SIZE - 10;
+        let left = sendRect ? sendRect.left - MIC_SIZE - MIC_SEND_GAP : inputRect.right - MIC_SIZE - 10;
         let top = anchorRect.top + (anchorRect.height - MIC_SIZE) / 2;
-
         left = Math.max(6, Math.min(left, window.innerWidth - MIC_SIZE - 6));
         top = Math.max(6, Math.min(top, window.innerHeight - MIC_SIZE - 6));
-
         micBtn.style.left = `${Math.round(left)}px`;
         micBtn.style.top = `${Math.round(top)}px`;
         micBtn.style.opacity = '1';
         micBtn.style.pointerEvents = 'auto';
       }
-
       function scheduleMicPosition() {
         requestAnimationFrame(positionMicButton);
-        setTimeout(positionMicButton, 80);
-        setTimeout(positionMicButton, 220);
-        setTimeout(positionMicButton, 500);
-        setTimeout(positionMicButton, 950);
+        setTimeout(positionMicButton, 80); setTimeout(positionMicButton, 220); setTimeout(positionMicButton, 500); setTimeout(positionMicButton, 950);
       }
       window.scheduleSantanderMicPosition = scheduleMicPosition;
-
       function scheduleAutomaticListening(delay = 550) {
         clearTimeout(restartMicTimer);
         if (!autoConversationEnabled || isRecording || isAgentSpeaking || awaitingAgentResponse) return;
-
         restartMicTimer = setTimeout(function () {
           if (!autoConversationEnabled || isRecording || isAgentSpeaking || awaitingAgentResponse) return;
-          console.log('[Santander] Turno del usuario: reactivando micrófono automáticamente.');
           startRecording(true);
         }, delay);
       }
-
       function updateChatInput(text) {
         const inputElement = window.getSantanderChatInput();
-        if (!inputElement) {
-          console.warn('[Santander] No se pudo actualizar el input del chat.');
-          return false;
-        }
-
-        const updated = window.setSantanderChatInput(inputElement, text);
-        if (updated) console.log('[Santander] Preview actualizado:', text);
-        return updated;
+        if (!inputElement) return false;
+        return window.setSantanderChatInput(inputElement, text);
       }
-
       function finishRecordingAndSend() {
         if (!window.activeRecognition) return;
         sendWhenRecognitionEnds = true;
-        console.log('[Santander] Finalizando reconocimiento para enviar...');
-        try {
-          window.activeRecognition.stop();
-        } catch (error) {
-          console.warn('[Santander] El reconocimiento ya estaba detenido:', error);
-        }
+        try { window.activeRecognition.stop(); } catch (error) {}
       }
-
       function startRecording(isAutomatic = false) {
         clearTimeout(restartMicTimer);
         if (isRecording || isAgentSpeaking || awaitingAgentResponse) return;
-
         if (!isAutomatic) autoConversationEnabled = true;
         if (window.speechSynthesis) window.speechSynthesis.cancel();
-
-        // Do not replay the previous agent answer when the user starts a new turn.
         awaitingAgentResponse = false;
         scanRootForAgentMessages(document);
-
-        latestTranscript = '';
-        sendWhenRecognitionEnds = false;
-        recognitionEndedByNoSpeech = false;
-
-        // A manual click starts a fresh voice session. Automatic retries keep
-        // their backoff counter until real speech is detected.
+        latestTranscript = ''; sendWhenRecognitionEnds = false; recognitionEndedByNoSpeech = false;
         if (!isAutomatic) noSpeechRetryCount = 0;
-
         updateChatInput('');
-
         const recognition = new SpeechRecognitionCtor();
         window.activeRecognition = recognition;
-
-        recognition.lang = 'es-AR';
-        recognition.continuous = false;
-        recognition.interimResults = true;
-        recognition.maxAlternatives = 1;
-
-        recognition.onstart = function () {
-          isRecording = true;
-          micBtn.classList.add('recording');
-          scheduleMicPosition();
-          console.log('[Santander] Micrófono activo en es-AR.');
-        };
-
-        recognition.onsoundstart = function () {
-          console.log('[Santander] Se detectó sonido.');
-        };
-
-        recognition.onspeechstart = function () {
-          console.log('[Santander] Se detectó habla.');
-        };
-
+        recognition.lang = 'es-AR'; recognition.continuous = false; recognition.interimResults = true; recognition.maxAlternatives = 1;
+        recognition.onstart = function () { isRecording = true; micBtn.classList.add('recording'); scheduleMicPosition(); };
         recognition.onresult = function (event) {
-          let transcript = '';
-          let hasFinalResult = false;
-
+          let transcript = ''; let hasFinalResult = false;
           for (let i = 0; i < event.results.length; i++) {
-            const fragment = event.results[i][0].transcript;
-            transcript += fragment + ' ';
+            transcript += event.results[i][0].transcript + ' ';
             hasFinalResult = hasFinalResult || event.results[i].isFinal;
-
-            console.log(
-              `[Santander] Fragmento ${i} (${event.results[i].isFinal ? 'Final' : 'Intermedio'}): "${fragment}"`
-            );
           }
-
           latestTranscript = transcript.replace(/\s+/g, ' ').trim();
           updateChatInput(latestTranscript);
-
-          if (latestTranscript) {
-            noSpeechRetryCount = 0;
-            recognitionEndedByNoSpeech = false;
-          }
-
-          if (hasFinalResult && latestTranscript) {
-            sendWhenRecognitionEnds = true;
-            console.log('[Santander] Resultado final detectado; se enviará automáticamente.');
-          }
+          if (latestTranscript) { noSpeechRetryCount = 0; recognitionEndedByNoSpeech = false; }
+          if (hasFinalResult && latestTranscript) { sendWhenRecognitionEnds = true; }
         };
-
-        recognition.onnomatch = function () {
-          console.warn('[Santander] Se escuchó audio, pero no se reconocieron palabras.');
-        };
-
         recognition.onerror = function (event) {
-          // Edge emits no-speech when the listening window expires without
-          // detecting a voice. In continuous conversation mode this is an
-          // expected idle state, not a critical failure.
-          if (event.error === 'no-speech') {
-            recognitionEndedByNoSpeech = true;
-            sendWhenRecognitionEnds = false;
-            console.info('[Santander] No se detectó habla. Se reintentará la escucha automáticamente.');
-            return;
-          }
-
-          // Aborted can occur when recognition is intentionally replaced or
-          // stopped. Do not surface it as a red console error.
-          if (event.error === 'aborted') {
-            sendWhenRecognitionEnds = false;
-            console.info('[Santander] Reconocimiento interrumpido de forma controlada.');
-            return;
-          }
-
-          console.error('[Santander] Error de Web Speech API:', event.error);
+          if (event.error === 'no-speech') { recognitionEndedByNoSpeech = true; sendWhenRecognitionEnds = false; return; }
+          if (event.error === 'aborted') { sendWhenRecognitionEnds = false; return; }
           sendWhenRecognitionEnds = false;
-
           if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
             autoConversationEnabled = false;
-            alert('Permiso de micrófono denegado. Habilitalo desde el candado de la barra de direcciones.');
+            alert('Permiso de micrófono denegado.');
           }
         };
-
         recognition.onend = function () {
-          console.log('[Santander] Reconocimiento finalizado.');
-          isRecording = false;
-          micBtn.classList.remove('recording');
-          window.activeRecognition = null;
-
+          isRecording = false; micBtn.classList.remove('recording'); window.activeRecognition = null;
           const textToSend = latestTranscript.trim();
           if (sendWhenRecognitionEnds && textToSend) {
-            noSpeechRetryCount = 0;
-            awaitingAgentResponse = true;
-            console.log('[Santander] Enviando al agente:', textToSend);
+            noSpeechRetryCount = 0; awaitingAgentResponse = true;
             window.sendSantanderQuery(textToSend);
           } else if (recognitionEndedByNoSpeech && autoConversationEnabled) {
-            // Keep hands-free mode alive. Use a small progressive backoff so
-            // an idle user does not create a tight restart loop.
             noSpeechRetryCount += 1;
             const retryDelay = Math.min(900 + noSpeechRetryCount * 450, 3500);
-            console.info(
-              `[Santander] Micrófono en espera. Nuevo intento en ${retryDelay} ms.`
-            );
             scheduleAutomaticListening(retryDelay);
-          } else if (!textToSend) {
-            console.info('[Santander] No hubo texto para enviar.');
           }
-
-          sendWhenRecognitionEnds = false;
-          recognitionEndedByNoSpeech = false;
-          scheduleMicPosition();
+          sendWhenRecognitionEnds = false; recognitionEndedByNoSpeech = false; scheduleMicPosition();
         };
-
-        try {
-          recognition.start();
-        } catch (error) {
-          console.error('[Santander] Error al iniciar el micrófono:', error);
-          isRecording = false;
-          micBtn.classList.remove('recording');
-        }
+        try { recognition.start(); } catch (error) { isRecording = false; micBtn.classList.remove('recording'); }
       }
-
       micBtn.addEventListener('click', function () {
         autoConversationEnabled = true;
-        if (isRecording) {
-          finishRecordingAndSend();
-        } else if (!isAgentSpeaking && !awaitingAgentResponse) {
-          startRecording(false);
-        }
+        if (isRecording) finishRecordingAndSend();
+        else if (!isAgentSpeaking && !awaitingAgentResponse) startRecording(false);
       });
-
-      window.addEventListener('resize', scheduleMicPosition);
-      window.addEventListener('scroll', scheduleMicPosition, true);
-      document.addEventListener('click', scheduleMicPosition, true);
-      new MutationObserver(scheduleMicPosition).observe(document.documentElement, {
-        childList: true,
-        subtree: true,
-        attributes: true
-      });
-      setInterval(positionMicButton, 900);
-      scheduleMicPosition();
+      window.addEventListener('resize', scheduleMicPosition); window.addEventListener('scroll', scheduleMicPosition, true); document.addEventListener('click', scheduleMicPosition, true);
+      new MutationObserver(scheduleMicPosition).observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+      setInterval(positionMicButton, 900); scheduleMicPosition();
 
       // ---- Text-to-speech for new agent messages ----
-      const observedSpeechRoots = new WeakSet();
-      const spokenElements = new WeakMap();
-      const spokenTextHistory = new Set();
-      let speechScanTimer = null;
-      let speechObserverReady = false;
-      let awaitingAgentResponse = false;
-
-      // Prefer the male Argentine voice exposed by Microsoft Edge.
-      const preferredMaleVoiceNames = [
-        'Microsoft Tomas Online (Natural) - Spanish (Argentina)',
-        'Microsoft Tomas Online',
-        'Tomas'
-      ];
-
-      // Normalize terms only in the copy sent to speechSynthesis.
-      // The original text, currency symbols, product names and emojis remain
-      // unchanged in the visual chat.
+      const observedSpeechRoots = new WeakSet(); const spokenElements = new WeakMap(); const spokenTextHistory = new Set();
+      let speechScanTimer = null; let speechObserverReady = false; let awaitingAgentResponse = false;
       function normalizeCurrencyForSpeech(text) {
         return String(text || '')
-          // Explicit US-dollar formats must remain dollars.
           .replace(/\bUSD\s*\$?\s*([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)/gi, '$1 dólares estadounidenses')
           .replace(/US\$\s*([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)/gi, '$1 dólares estadounidenses')
           .replace(/U\$S\s*([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)/gi, '$1 dólares estadounidenses')
-
-          // Explicit Argentine-peso formats.
           .replace(/\bARS\s*\$?\s*([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)/gi, '$1 pesos argentinos')
-
-          // Monthly amounts such as "$6.400/mes".
           .replace(/\$\s*([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)\s*\/\s*mes\b/gi, '$1 pesos argentinos por mes')
-
-          // In this Santander Argentina demo, a bare "$" means Argentine pesos.
           .replace(/\$\s*([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)/g, '$1 pesos argentinos')
-
-          // Defensive cleanup when the source already names the currency.
           .replace(/\bpesos argentinos\s+pesos(?: argentinos)?\b/gi, 'pesos argentinos')
           .replace(/\bdólares estadounidenses\s+dólares(?: estadounidenses)?\b/gi, 'dólares estadounidenses');
       }
-
-      function normalizeProductTermsForSpeech(text) {
-        return String(text || '')
-          // Santander's financing product is pronounced "Plan Ve", not "Plan uve".
-          .replace(/\bPlan\s+V\b/gi, 'Plan Ve');
-      }
-
+      function normalizeProductTermsForSpeech(text) { return String(text || '').replace(/\bPlan\s+V\b/gi, 'Plan Ve'); }
       function cleanSpeechText(text) {
-        return normalizeProductTermsForSpeech(
-          normalizeCurrencyForSpeech(text)
-        )
-          // Remove Markdown formatting before sending text to TTS.
-          .replace(/\*\*(.*?)\*\*/g, '$1')
-          .replace(/__(.*?)__/g, '$1')
-          .replace(/`([^`]+)`/g, '$1')
-          .replace(/^#{1,6}\s*/gm, '')
-          // Remove emojis, pictographs, flags, variation selectors, keycaps and joiners.
+        return normalizeProductTermsForSpeech(normalizeCurrencyForSpeech(text))
+          .replace(/\*\*(.*?)\*\*/g, '$1').replace(/__(.*?)__/g, '$1').replace(/`([^`]+)`/g, '$1').replace(/^#{1,6}\s*/gm, '')
           .replace(/[\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0E\uFE0F\u200D\u20E3]/gu, '')
-          // Turn line breaks into natural pauses for TTS.
-          .replace(/\n{2,}/g, '. ')
-          .replace(/\n/g, ', ')
-          .replace(/\s+/g, ' ')
-          .replace(/^[›•-]+\s*/, '')
-          .trim();
+          .replace(/\n{2,}/g, '. ').replace(/\n/g, ', ').replace(/\s+/g, ' ').replace(/^[›•-]+\s*/, '').trim();
       }
-
       function getSpanishVoice() {
         const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
-
-        return (
-          voices.find(v => v.name === 'Microsoft Tomas Online (Natural) - Spanish (Argentina)') ||
-          voices.find(v => v.name.toLowerCase().includes('microsoft tomas online')) ||
-          voices.find(v => /^es-AR$/i.test(v.lang) && v.name.toLowerCase().includes('tomas')) ||
-          voices.find(v => /^es-AR$/i.test(v.lang)) ||
-          voices.find(v => /^es(-|$)/i.test(v.lang)) ||
-          null
-        );
+        return voices.find(v => v.name === 'Microsoft Tomas Online (Natural) - Spanish (Argentina)') ||
+               voices.find(v => v.name.toLowerCase().includes('microsoft tomas online')) ||
+               voices.find(v => /^es-AR$/i.test(v.lang) && v.name.toLowerCase().includes('tomas')) ||
+               voices.find(v => /^es-AR$/i.test(v.lang)) || voices.find(v => /^es(-|$)/i.test(v.lang)) || null;
       }
-
       function speakAgentText(text) {
-        const cleanText = cleanSpeechText(text);
-        const speechKey = cleanText.toLowerCase();
+        const cleanText = cleanSpeechText(text); const speechKey = cleanText.toLowerCase();
         if (!cleanText || cleanText.length < 2 || !window.speechSynthesis) return;
-
-        // Prevent an old agent response from being spoken again after DOM re-rendering.
-        if (spokenTextHistory.has(speechKey)) {
-          console.log('[Santander][TTS] Respuesta ya reproducida; se omite:', cleanText);
-          return;
-        }
+        if (spokenTextHistory.has(speechKey)) return;
         spokenTextHistory.add(speechKey);
-
         window.speechSynthesis.cancel();
-
         const utterance = new SpeechSynthesisUtterance(cleanText);
-        utterance.lang = 'es-AR';
-        // Keep Tomas close to his native rendering. Large pitch shifts make
-        // Edge's online voice sound metallic or pixelated.
-        utterance.rate = 1.03;
-        utterance.pitch = 1.02;
-        utterance.volume = 1;
-
-        const voice = getSpanishVoice();
-        if (voice) {
-          utterance.voice = voice;
-          console.log('[Santander][TTS] Voz seleccionada:', voice.name, voice.lang);
-        }
-
-        utterance.onstart = function () {
-          awaitingAgentResponse = false;
-          isAgentSpeaking = true;
-          micBtn.classList.remove('recording');
-          console.log('[Santander][TTS] Reproduciendo respuesta:', cleanText);
-        };
-        utterance.onend = function () {
-          isAgentSpeaking = false;
-          console.log('[Santander][TTS] Respuesta finalizada; habilitando turno del usuario.');
-          scheduleMicPosition();
-          scheduleAutomaticListening(650);
-        };
-        utterance.onerror = function (event) {
-          isAgentSpeaking = false;
-          console.error('[Santander][TTS] Error de reproducción:', event.error);
-          scheduleAutomaticListening(650);
-        };
-
+        utterance.lang = 'es-AR'; utterance.rate = 1.03; utterance.pitch = 1.02; utterance.volume = 1;
+        const voice = getSpanishVoice(); if (voice) utterance.voice = voice;
+        utterance.onstart = function () { awaitingAgentResponse = false; isAgentSpeaking = true; micBtn.classList.remove('recording'); };
+        utterance.onend = function () { isAgentSpeaking = false; scheduleMicPosition(); scheduleAutomaticListening(650); };
+        utterance.onerror = function () { isAgentSpeaking = false; scheduleAutomaticListening(650); };
         window.speechSynthesis.speak(utterance);
       }
-
       function isAgentMessageElement(element) {
         if (!(element instanceof Element)) return false;
-
-        const signature = [
-          element.tagName,
-          element.className,
-          element.id,
-          element.getAttribute('aria-label'),
-          element.getAttribute('data-author'),
-          element.getAttribute('data-role')
-        ].filter(Boolean).join(' ').toLowerCase();
-
-        const looksLikeAgent = /(bot-message|agent-message|incoming|received|assistant-message|model-message|agent-response|bot-response)/.test(signature);
-        const looksLikeUser = /(user-message|human-message|outgoing|sent|composer|input|quick-action|quick-reply|suggestion|chip)/.test(signature);
-
-        return looksLikeAgent && !looksLikeUser;
+        const signature = [element.tagName, element.className, element.id, element.getAttribute('aria-label'), element.getAttribute('data-author'), element.getAttribute('data-role')].filter(Boolean).join(' ').toLowerCase();
+        return /(bot-message|agent-message|incoming|received|assistant-message|model-message|agent-response|bot-response)/.test(signature) && !/(user-message|human-message|outgoing|sent|composer|input|quick-action|quick-reply|suggestion|chip)/.test(signature);
       }
-
       function scanRootForAgentMessages(root) {
         if (!root || !root.querySelectorAll) return;
-
-        const candidates = root.querySelectorAll(
-          '[class*="bot-message" i], [class*="agent-message" i], [class*="incoming" i], ' +
-          '[class*="received" i], [class*="assistant-message" i], [class*="agent-response" i], ' +
-          '[data-author="bot" i], [data-author="agent" i], [data-role="assistant" i]'
-        );
-
+        const candidates = root.querySelectorAll('[class*="bot-message" i], [class*="agent-message" i], [class*="incoming" i], [class*="received" i], [class*="assistant-message" i], [class*="agent-response" i], [data-author="bot" i], [data-author="agent" i], [data-role="assistant" i]');
         candidates.forEach(function (element) {
           if (!isAgentMessageElement(element)) return;
-
           const text = cleanSpeechText(element.innerText || element.textContent);
           if (!text || text.length > 1500) return;
-
           const previousText = spokenElements.get(element);
           if (previousText === text) return;
-
           const speechKey = text.toLowerCase();
-
-          // During initial scan or while no new agent turn is expected, catalog silently.
-          if (!speechObserverReady || !awaitingAgentResponse) {
-            spokenElements.set(element, text);
-            spokenTextHistory.add(speechKey);
-            return;
-          }
-
-          // A DOM re-render can create a new element for an old message.
-          if (spokenTextHistory.has(speechKey)) {
-            spokenElements.set(element, text);
-            return;
-          }
-
-          // Wait until streaming/rendering settles. The latest text replaces any partial version.
+          if (!speechObserverReady || !awaitingAgentResponse) { spokenElements.set(element, text); spokenTextHistory.add(speechKey); return; }
+          if (spokenTextHistory.has(speechKey)) { spokenElements.set(element, text); return; }
           spokenElements.set(element, text);
           clearTimeout(element.__santanderSpeechTimer);
-          element.__santanderSpeechTimer = setTimeout(function () {
-            if (spokenElements.get(element) === text) speakAgentText(text);
-          }, 1100);
+          element.__santanderSpeechTimer = setTimeout(function () { if (spokenElements.get(element) === text) speakAgentText(text); }, 1100);
         });
-
-        root.querySelectorAll('*').forEach(function (element) {
-          if (element.shadowRoot) observeSpeechRoot(element.shadowRoot);
-        });
+        root.querySelectorAll('*').forEach(function (element) { if (element.shadowRoot) observeSpeechRoot(element.shadowRoot); });
       }
-
-      function scheduleSpeechScan() {
-        clearTimeout(speechScanTimer);
-        speechScanTimer = setTimeout(function () {
-          scanRootForAgentMessages(document);
-        }, 150);
-      }
-
+      function scheduleSpeechScan() { clearTimeout(speechScanTimer); speechScanTimer = setTimeout(function () { scanRootForAgentMessages(document); }, 150); }
       function observeSpeechRoot(root) {
         if (!root || observedSpeechRoots.has(root)) return;
-        observedSpeechRoots.add(root);
-
-        scanRootForAgentMessages(root);
-
-        new MutationObserver(function () {
-          scanRootForAgentMessages(root);
-          scheduleSpeechScan();
-        }).observe(root, {
-          childList: true,
-          subtree: true,
-          characterData: true
-        });
+        observedSpeechRoots.add(root); scanRootForAgentMessages(root);
+        new MutationObserver(function () { scanRootForAgentMessages(root); scheduleSpeechScan(); }).observe(root, { childList: true, subtree: true, characterData: true });
       }
-
       observeSpeechRoot(document);
-
-      // Give the observer one initial pass to catalog existing messages silently.
-      setTimeout(function () {
-        speechObserverReady = true;
-        console.log('[Santander][TTS] Observador listo para leer nuevas respuestas.');
-      }, 1200);
-
-      if (window.speechSynthesis) {
-        window.speechSynthesis.getVoices();
-        window.speechSynthesis.onvoiceschanged = function () {
-          console.log('[Santander][TTS] Voces disponibles:', window.speechSynthesis.getVoices().map(v => `${v.name} (${v.lang})`));
-        };
-      } else {
-        console.warn('[Santander][TTS] SpeechSynthesis no está disponible.');
-      }
+      setTimeout(function () { speechObserverReady = true; }, 1200);
+      if (window.speechSynthesis) window.speechSynthesis.getVoices();
     });
-
   </script>
+
   <div id="chat-wrapper">
     <button id="custom-mic-btn" title="Dictar por voz" aria-label="Dictar por voz">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2610,167 +1499,51 @@
         custom-css="
           * { font-family: 'DM Sans', Arial, sans-serif !important; box-sizing: border-box !important; }
           main, [class*='chat-body'], [class*='message-list'], [class*='messages'], [class*='conversation'] {
-            background:
-              radial-gradient(circle at 100% 0%, rgba(236,0,0,.035), transparent 34%),
-              linear-gradient(180deg, #ffffff 0%, #fffafa 100%) !important;
+            background: radial-gradient(circle at 100% 0%, rgba(236,0,0,.035), transparent 34%), linear-gradient(180deg, #ffffff 0%, #fffafa 100%) !important;
             padding: 16px !important;
           }
           header, [class*='header'], [class*='title-bar'], [class*='toolbar'] {
-            background: linear-gradient(180deg, #ffffff 0%, #fffdfd 100%) !important;
-            border-bottom: 1px solid #eadede !important;
-            box-shadow: inset 0 -3px 0 #ec0000 !important;
-            padding: 13px 15px !important;
+            background: linear-gradient(180deg, #ffffff 0%, #fffdfd 100%) !important; border-bottom: 1px solid #eadede !important;
+            box-shadow: inset 0 -3px 0 #ec0000 !important; padding: 13px 15px !important;
           }
-          [class*='chat-title'], [class*='title'] {
-            color: #1a1a1a !important;
-            font-size: 15px !important;
-            font-weight: 700 !important;
-          }
+          [class*='chat-title'], [class*='title'] { color: #1a1a1a !important; font-size: 15px !important; font-weight: 700 !important; }
           [class*='user-message'], [class*='human-message'], [class*='outgoing'], [class*='sent'] {
-            background: #ffe8e8 !important;
-            color: #8f0000 !important;
-            border-radius: 18px 5px 18px 18px !important;
-            padding: 10px 14px !important;
-            max-width: 82% !important;
-            box-shadow: 0 1px 2px rgba(126,0,0,.04) !important;
+            background: #ffe8e8 !important; color: #8f0000 !important; border-radius: 18px 5px 18px 18px !important;
+            padding: 10px 14px !important; max-width: 82% !important; box-shadow: 0 1px 2px rgba(126,0,0,.04) !important;
           }
           [class*='user-message'] *, [class*='human-message'] *, [class*='outgoing'] * { color: #8f0000 !important; }
-          /* Bot bubble: was transparent (blended into the background) — now a real card
-             so messages read distinctly instead of floating text on a gray field */
           [class*='bot-message'], [class*='agent-message'], [class*='incoming'], [class*='received'] {
             background: var(--chat-messenger-color--surface-container-high, #fff2f2) !important;
-            color: #1a1a1a !important;
-            border: 1px solid rgba(236,0,0,.08) !important;
-            box-shadow: 0 2px 8px rgba(140,0,0,.05) !important;
-            border-radius: 4px var(--chat-messenger-shape--corner-value-medium, 16px)
-                           var(--chat-messenger-shape--corner-value-medium, 16px)
-                           var(--chat-messenger-shape--corner-value-medium, 16px) !important;
-            padding: 12px 15px !important;
-            width: fit-content !important;
-            max-width: 96% !important;
-            line-height: 1.55 !important;
+            color: #1a1a1a !important; border: 1px solid rgba(236,0,0,.08) !important; box-shadow: 0 2px 8px rgba(140,0,0,.05) !important;
+            border-radius: 4px var(--chat-messenger-shape--corner-value-medium, 16px) var(--chat-messenger-shape--corner-value-medium, 16px) var(--chat-messenger-shape--corner-value-medium, 16px) !important;
+            padding: 12px 15px !important; width: fit-content !important; max-width: 96% !important; line-height: 1.55 !important;
           }
-          /* ===== QUICK ACTIONS: single box, four rows, dividers instead of separate cards ===== */
           [class*='chip-list'], [class*='suggestion-list'], [class*='quick-actions'], [class*='actions-container'] {
-            display: flex !important;
-            flex-direction: column !important;
-            gap: 0 !important;
-            width: 100% !important;
-            margin-top: 6px !important;
-            background: var(--chat-messenger-color--surface-container, #ffffff) !important;
-            border: 1px solid var(--chat-messenger-color--outline-variant, rgba(236,0,0,.14)) !important;
-            border-radius: var(--chat-messenger-shape--corner-value-large, 20px) !important;
-            box-shadow: var(--chat-messenger-elevation, 0 14px 38px rgba(0,0,0,.16), 0 3px 12px rgba(236,0,0,.14)) !important;
-            overflow: hidden !important;
+            display: flex !important; flex-direction: column !important; gap: 0 !important; width: 100% !important; margin-top: 6px !important;
+            background: var(--chat-messenger-color--surface-container, #ffffff) !important; border: 1px solid var(--chat-messenger-color--outline-variant, rgba(236,0,0,.14)) !important;
+            border-radius: var(--chat-messenger-shape--corner-value-large, 20px) !important; box-shadow: var(--chat-messenger-elevation, 0 14px 38px rgba(0,0,0,.16), 0 3px 12px rgba(236,0,0,.14)) !important; overflow: hidden !important;
           }
           [class*='chip'], [class*='suggestion'], [class*='quick-action'], [class*='quick-reply'], [class*='action-item'] {
-            position: relative !important;
-            background: transparent !important;
-            color: #242424 !important;
-            border: 0 !important;
-            border-bottom: 1px solid var(--chat-messenger-color--outline-variant, rgba(236,0,0,.10)) !important;
-            border-radius: 0 !important;
-            padding: 14px 36px 14px 16px !important;
-            width: 100% !important;
-            min-height: 56px !important;
-            text-align: left !important;
-            box-shadow: none !important;
-            transform: none !important;
-            transition: background .15s ease, color .15s ease !important;
+            position: relative !important; background: transparent !important; color: #242424 !important; border: 0 !important;
+            border-bottom: 1px solid var(--chat-messenger-color--outline-variant, rgba(236,0,0,.10)) !important; border-radius: 0 !important;
+            padding: 14px 36px 14px 16px !important; width: 100% !important; min-height: 56px !important; text-align: left !important; box-shadow: none !important; transform: none !important; transition: background .15s ease, color .15s ease !important;
           }
-          [class*='chip']:last-child, [class*='suggestion']:last-child,
-          [class*='quick-action']:last-child, [class*='action-item']:last-child {
-            border-bottom: 0 !important;
-          }
-          [class*='chip']::after, [class*='suggestion']::after, [class*='quick-action']::after, [class*='action-item']::after {
-            content: '›' !important;
-            position: absolute !important;
-            right: 16px !important;
-            top: 50% !important;
-            transform: translateY(-50%) !important;
-            color: #a7a7a7 !important;
-            font-size: 22px !important;
-            font-weight: 400 !important;
-          }
-          /* Solid red-tinted hover — not the semi-transparent state-layer token,
-             which reads as gray at low opacity on a near-white surface */
-          [class*='chip']:hover, [class*='suggestion']:hover, [class*='quick-action']:hover, [class*='action-item']:hover {
-            background: #fff3f3 !important;
-            color: #8f0000 !important;
-          }
-          [class*='chip']:hover::after, [class*='suggestion']:hover::after,
-          [class*='quick-action']:hover::after, [class*='action-item']:hover::after {
-            color: #ec0000 !important;
-          }
-          [class*='chip']:active, [class*='suggestion']:active, [class*='quick-action']:active, [class*='action-item']:active {
-            background: #ffe6e6 !important;
-          }
-          [class*='chip'] [class*='title'], [class*='chip'] [class*='label'],
-          [class*='suggestion'] [class*='title'], [class*='quick-action'] [class*='title'] {
-            color: #1a1a1a !important;
-            font-size: var(--chat-messenger-typescale--title-small-font-size, 14px) !important;
-            font-weight: var(--chat-messenger-typescale--title-small-font-weight, 500) !important;
-            display: block !important;
-            margin-bottom: 3px !important;
-          }
-          [class*='chip']:hover [class*='title'], [class*='quick-action']:hover [class*='title'] {
-            color: #8f0000 !important;
-          }
-          [class*='chip'] [class*='description'], [class*='chip'] [class*='subtitle'],
-          [class*='suggestion'] [class*='description'], [class*='quick-action'] [class*='description'] {
-            color: #777777 !important;
-            font-size: var(--chat-messenger-typescale--body-small-font-size, 12px) !important;
-            font-weight: 400 !important;
-            line-height: 1.35 !important;
-            display: block !important;
-          }
-          /* ===== Input / footer ===== */
-          [class*='input-container'], [class*='input-area'], [class*='composer'], [class*='footer'] {
-            background: linear-gradient(180deg, #fffdfd 0%, #ffffff 100%) !important;
-            border-top: 1px solid #eadede !important;
-            box-shadow: 0 -8px 22px rgba(80,0,0,.035) !important;
-            padding: 11px 12px !important;
-          }
-          input, textarea, [contenteditable] {
-            background: #ffffff !important;
-            color: #242424 !important;
-            border: 1px solid #dfd3d3 !important;
-            border-radius: 999px !important;
-            min-height: 46px !important;
-            padding: 10px 92px 10px 16px !important;
-            outline: none !important;
-            box-shadow: inset 0 1px 2px rgba(0,0,0,.02) !important;
-            transition: border-color .16s ease, box-shadow .16s ease !important;
-          }
+          [class*='chip']:last-child, [class*='suggestion']:last-child, [class*='quick-action']:last-child, [class*='action-item']:last-child { border-bottom: 0 !important; }
+          [class*='chip']::after, [class*='suggestion']::after, [class*='quick-action']::after, [class*='action-item']::after { content: '›' !important; position: absolute !important; right: 16px !important; top: 50% !important; transform: translateY(-50%) !important; color: #a7a7a7 !important; font-size: 22px !important; font-weight: 400 !important; }
+          [class*='chip']:hover, [class*='suggestion']:hover, [class*='quick-action']:hover, [class*='action-item']:hover { background: #fff3f3 !important; color: #8f0000 !important; }
+          [class*='chip']:hover::after, [class*='suggestion']:hover::after, [class*='quick-action']:hover::after, [class*='action-item']:hover::after { color: #ec0000 !important; }
+          [class*='chip']:active, [class*='suggestion']:active, [class*='quick-action']:active, [class*='action-item']:active { background: #ffe6e6 !important; }
+          [class*='chip'] [class*='title'], [class*='chip'] [class*='label'], [class*='suggestion'] [class*='title'], [class*='quick-action'] [class*='title'] { color: #1a1a1a !important; font-size: var(--chat-messenger-typescale--title-small-font-size, 14px) !important; font-weight: var(--chat-messenger-typescale--title-small-font-weight, 500) !important; display: block !important; margin-bottom: 3px !important; }
+          [class*='chip']:hover [class*='title'], [class*='quick-action']:hover [class*='title'] { color: #8f0000 !important; }
+          [class*='chip'] [class*='description'], [class*='chip'] [class*='subtitle'], [class*='suggestion'] [class*='description'], [class*='quick-action'] [class*='description'] { color: #777777 !important; font-size: var(--chat-messenger-typescale--body-small-font-size, 12px) !important; font-weight: 400 !important; line-height: 1.35 !important; display: block !important; }
+          [class*='input-container'], [class*='input-area'], [class*='composer'], [class*='footer'] { background: linear-gradient(180deg, #fffdfd 0%, #ffffff 100%) !important; border-top: 1px solid #eadede !important; box-shadow: 0 -8px 22px rgba(80,0,0,.035) !important; padding: 11px 12px !important; }
+          input, textarea, [contenteditable] { background: #ffffff !important; color: #242424 !important; border: 1px solid #dfd3d3 !important; border-radius: 999px !important; min-height: 46px !important; padding: 10px 92px 10px 16px !important; outline: none !important; box-shadow: inset 0 1px 2px rgba(0,0,0,.02) !important; transition: border-color .16s ease, box-shadow .16s ease !important; }
           input::placeholder, textarea::placeholder { color: #999999 !important; }
-          input:focus, textarea:focus {
-            border-color: #ec0000 !important;
-            box-shadow: 0 0 0 3px rgba(236,0,0,.10) !important;
-          }
-          [class*='send-btn'], button.send, button[type='submit'], [aria-label*='send'], [aria-label*='Send'] {
-            background: #ec0000 !important;
-            color: #ffffff !important;
-            border-radius: 50% !important;
-            width: 38px !important;
-            height: 38px !important;
-            min-width: 38px !important;
-            box-shadow: 0 4px 12px rgba(236,0,0,.28) !important;
-            transition: transform .15s ease, background .15s ease !important;
-          }
-          [class*='send-btn']:hover, button.send:hover, button[type='submit']:hover, [aria-label*='send']:hover, [aria-label*='Send']:hover {
-            background: #c90000 !important;
-            transform: scale(1.04) !important;
-          }
-          [aria-label*='microphone'], [aria-label*='Microphone'], [aria-label*='audio'], [aria-label*='Audio'] {
-            color: #666666 !important;
-            display: inline-flex !important;
-          }
-          [class*='typing'], [class*='thinking'], [class*='loading'] {
-            background: #fff8f8 !important;
-            border: 1px solid #efdede !important;
-            border-radius: 14px !important;
-            padding: 10px 14px !important;
-          }
+          input:focus, textarea:focus { border-color: #ec0000 !important; box-shadow: 0 0 0 3px rgba(236,0,0,.10) !important; }
+          [class*='send-btn'], button.send, button[type='submit'], [aria-label*='send'], [aria-label*='Send'] { background: #ec0000 !important; color: #ffffff !important; border-radius: 50% !important; width: 38px !important; height: 38px !important; min-width: 38px !important; box-shadow: 0 4px 12px rgba(236,0,0,.28) !important; transition: transform .15s ease, background .15s ease !important; }
+          [class*='send-btn']:hover, button.send:hover, button[type='submit']:hover, [aria-label*='send']:hover, [aria-label*='Send']:hover { background: #c90000 !important; transform: scale(1.04) !important; }
+          [aria-label*='microphone'], [aria-label*='Microphone'], [aria-label*='audio'], [aria-label*='Audio'] { color: #666666 !important; display: inline-flex !important; }
+          [class*='typing'], [class*='thinking'], [class*='loading'] { background: #fff8f8 !important; border: 1px solid #efdede !important; border-radius: 14px !important; padding: 10px 14px !important; }
           a { color: #c80000 !important; }
         ">
         <chat-reset-session-button slot="titlebar-actions" title-text="Nueva conversación"></chat-reset-session-button>
