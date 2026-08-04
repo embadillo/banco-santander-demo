@@ -463,8 +463,18 @@
           const products = Array.isArray(payload.productDetails)
             ? payload.productDetails.filter(item => item && typeof item === 'object')
             : [];
+          const hiddenFeatureLabels = new Set([
+            'mantenimiento',
+            'tasa',
+            'maintenance',
+            'rate'
+          ]);
           const features = Array.isArray(payload.features)
-            ? payload.features.filter(item => item && typeof item === 'object')
+            ? payload.features.filter(function (item) {
+                if (!item || typeof item !== 'object') return false;
+                const label = normalizeText(item.label).toLowerCase();
+                return !hiddenFeatureLabels.has(label);
+              })
             : [];
 
           this._renderRoot.replaceChildren();
@@ -579,14 +589,6 @@
               color: #6f6f6f;
               font-size: 12px;
               line-height: 1.4;
-            }
-
-            .price {
-              margin: 9px 0 0;
-              color: #8f0000;
-              font-size: 12px;
-              line-height: 1.35;
-              font-weight: 600;
             }
 
             .features {
@@ -761,14 +763,6 @@
               subtitle.className = 'subtitle';
               subtitle.textContent = subtitleText;
               body.appendChild(subtitle);
-            }
-
-            const priceText = normalizeText(product.price);
-            if (priceText) {
-              const price = document.createElement('p');
-              price.className = 'price';
-              price.textContent = `Mantenimiento: ${priceText}`;
-              body.appendChild(price);
             }
 
             const featureList = document.createElement('div');
