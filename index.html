@@ -1421,6 +1421,356 @@
       }
     });
 
+    // ---- Santander custom-widget bridge ---------------------------------
+    // CX Agent Studio returns the WidgetTool data in the diagnostic tool call,
+    // but the browser response does not consistently include the Dialogflow
+    // custom-template `name` envelope. Rather than asking the LLM to reproduce
+    // that fixed transport field, this adapter injects it deterministically in
+    // the frontend and passes the real payload to the registered Web Component.
+    (function installSantanderCardComparisonBridge() {
+      const TOOL_NAMES = new Set([
+        'santander_card_comparison',
+        'santander-card-comparison'
+      ]);
+      const renderedCallIds = new Set();
+
+      function parseJsonIfPossible(value) {
+        if (typeof value !== 'string') return value;
+        const text = value.trim();
+        if (!text || (!text.startsWith('{') && !text.startsWith('['))) return value;
+        try {
+          return JSON.parse(text);
+        } catch (_) {
+          return value;
+        }
+      }
+
+      function decodeBridgeValue(value, depth, seen) {
+        if (depth > 16 || value == null) return value;
+
+        const parsed = parseJsonIfPossible(value);
+        if (parsed !== value) return decodeBridgeValue(parsed, depth + 1, seen);
+
+        if (Array.isArray(value)) {
+          return value.map(function (item) {
+            return decodeBridgeValue(item, depth + 1, seen);
+          });
+        }
+
+        if (typeof value !== 'object') return value;
+        if (seen.has(value)) return value;
+        seen.add(value);
+
+        if (Object.prototype.hasOwnProperty.call(value, 'stringValue')) return value.stringValue;
+        if (Object.prototype.hasOwnProperty.call(value, 'numberValue')) return Number(value.numberValue);
+        if (Object.prototype.hasOwnProperty.call(value, 'integerValue')) return Number(value.integerValue);
+        if (Object.prototype.hasOwnProperty.call(value, 'doubleValue')) return Number(value.doubleValue);
+        if (Object.prototype.hasOwnProperty.call(value, 'boolValue')) return Boolean(value.boolValue);
+        if (Object.prototype.hasOwnProperty.call(value, 'booleanValue')) return Boolean(value.booleanValue);
+        if (Object.prototype.hasOwnProperty.call(value, 'nullValue')) return null;
+
+        if (value.listValue && Array.isArray(value.listValue.values)) {
+          return value.listValue.values.map(function (item) {
+            return decodeBridgeValue(item, depth + 1, seen);
+          });
+        }
+
+        if (value.arrayValue && Array.isArray(value.arrayValue.values)) {
+          return value.arrayValue.values.map(function (item) {
+            return decodeBridgeValue(item, depth + 1, seen);
+          });
+        }
+
+        const fields =
+          (value.structValue && value.structValue.fields) ||
+          (value.mapValue && value.mapValue.fields);
+
+        if (fields && typeof fields === 'object' && !Array.isArray(fields)) {
+          const decodedFields = {};
+          Object.entries(fields).forEach(function (entry) {
+            decodedFields[entry[0]] = decodeBridgeValue(entry[1], depth + 1, seen);
+          });
+          return decodedFields;
+        }
+
+        const decodedObject = {};
+        Object.entries(value).forEach(function (entry) {
+          decodedObject[entry[0]] = decodeBridgeValue(entry[1], depth + 1, seen);
+        });
+        return decodedObject;
+      }
+
+      function decodeBridgeArgs(value) {
+        try {
+          const sanitized = typeof value === 'object' && value !== null
+            ? JSON.parse(
+                JSON.stringify(value).replace(/<ctrl(\d+)>/g, function (_, code) {
+                  return String.fromCharCode(Number(code));
+                })
+              )
+            : value;
+          return decodeBridgeValue(sanitized, 0, new WeakSet());
+        } catch (error) {
+          console.warn('[Santander Widget Bridge] No se pudo normalizar el payload:', error);
+          return value;
+        }
+      }
+
+      function isComparisonPayload(value) {
+        return Boolean(
+          value &&
+          typeof value === 'object' &&
+          Array.isArray(value.productDetails) &&
+          value.productDetails.length > 0 &&
+          Array.isArray(value.features)
+        );
+      }
+
+      function findComparisonPayload(value, depth, seen) {
+        if (depth > 16 || value == null) return null;
+        const decoded = decodeBridgeArgs(value);
+
+        if (isComparisonPayload(decoded)) return decoded;
+        if (Array.isArray(decoded)) {
+          for (const item of decoded) {
+            const found = findComparisonPayload(item, depth + 1, seen);
+            if (found) return found;
+          }
+          return null;
+        }
+
+        if (typeof decoded !== 'object') return null;
+        if (seen.has(decoded)) return null;
+        seen.add(decoded);
+
+        const priorityKeys = [
+          'payload',
+          'args',
+          'response',
+          'result',
+          'data',
+          'widget',
+          'content',
+          'customPayload',
+          'richContent'
+        ];
+
+        for (const key of priorityKeys) {
+          if (!Object.prototype.hasOwnProperty.call(decoded, key)) continue;
+          const found = findComparisonPayload(decoded[key], depth + 1, seen);
+          if (found) return found;
+        }
+
+        for (const nested of Object.values(decoded)) {
+          const found = findComparisonPayload(nested, depth + 1, seen);
+          if (found) return found;
+        }
+
+        return null;
+      }
+
+      function collectToolCalls(value, output, depth, seen) {
+        if (depth > 18 || value == null) return output;
+        if (Array.isArray(value)) {
+          value.forEach(function (item) {
+            collectToolCalls(item, output, depth + 1, seen);
+          });
+          return output;
+        }
+        if (typeof value !== 'object') return output;
+        if (seen.has(value)) return output;
+        seen.add(value);
+
+        if (value.toolCall && typeof value.toolCall === 'object') {
+          output.push(value.toolCall);
+        }
+        if (value.tool_call && typeof value.tool_call === 'object') {
+          output.push(value.tool_call);
+        }
+
+        const looksLikeToolCall =
+          value.args &&
+          (value.displayName || value.display_name || value.name) &&
+          (value.id || value.tool || value.toolName || value.tool_name);
+
+        if (looksLikeToolCall) output.push(value);
+
+        Object.values(value).forEach(function (item) {
+          collectToolCalls(item, output, depth + 1, seen);
+        });
+        return output;
+      }
+
+      function getToolName(toolCall) {
+        return String(
+          toolCall.displayName ||
+          toolCall.display_name ||
+          toolCall.name ||
+          toolCall.toolName ||
+          toolCall.tool_name ||
+          ''
+        ).trim();
+      }
+
+      function getCallId(toolCall, payload) {
+        const explicit = String(toolCall.id || toolCall.toolCallId || toolCall.tool_call_id || '').trim();
+        if (explicit) return explicit;
+
+        try {
+          const firstId = payload.productDetails && payload.productDetails[0]
+            ? String(payload.productDetails[0].productId || payload.productDetails[0].title || '')
+            : '';
+          return [firstId, payload.productDetails.length, payload.features.length, payload.title || ''].join('|');
+        } catch (_) {
+          return String(Date.now());
+        }
+      }
+
+      function deepCollectCustomElements(root, output, visited) {
+        if (!root || visited.has(root)) return output;
+        visited.add(root);
+
+        try {
+          if (root.querySelectorAll) {
+            root.querySelectorAll('santander-card-comparison').forEach(function (element) {
+              if (!output.includes(element)) output.push(element);
+            });
+
+            root.querySelectorAll('*').forEach(function (element) {
+              if (element.shadowRoot) {
+                deepCollectCustomElements(element.shadowRoot, output, visited);
+              }
+            });
+          }
+        } catch (_) {
+          // Closed or transient roots are ignored.
+        }
+
+        return output;
+      }
+
+      function getComparisonElements() {
+        return deepCollectCustomElements(document, [], new WeakSet());
+      }
+
+      function elementHasUsablePayload(element) {
+        if (!element) return false;
+        return Boolean(
+          findComparisonPayload(
+            element.dfPayload || element.payload || element._dfPayloadValue || element._payloadValue,
+            0,
+            new WeakSet()
+          )
+        );
+      }
+
+      function hydrateElement(element, payload, callId) {
+        if (!element) return false;
+
+        try {
+          element.setAttribute('data-santander-bridge-call', callId);
+          element.dfPayload = payload;
+          if (typeof element.scheduleRender === 'function') element.scheduleRender();
+          console.log('[Santander Widget Bridge] Payload aplicado al componente existente:', callId);
+          return true;
+        } catch (error) {
+          console.warn('[Santander Widget Bridge] No se pudo hidratar el componente existente:', error);
+          return false;
+        }
+      }
+
+      function renderComparison(chatElement, payload, callId) {
+        const existing = getComparisonElements();
+        const unhydrated = existing.slice().reverse().find(function (element) {
+          return !elementHasUsablePayload(element);
+        });
+
+        if (unhydrated && hydrateElement(unhydrated, payload, callId)) return;
+
+        if (!chatElement || typeof chatElement.renderCustomCard !== 'function') {
+          console.error('[Santander Widget Bridge] renderCustomCard no está disponible.');
+          return;
+        }
+
+        chatElement.renderCustomCard([
+          {
+            type: 'custom_template',
+            name: 'santander-card-comparison',
+            payload: payload
+          }
+        ]);
+
+        console.log('[Santander Widget Bridge] Envelope inyectado y widget renderizado:', callId);
+
+        // Defensive hydration for SDK builds that instantiate the element but do
+        // not apply dfPayload reliably.
+        window.setTimeout(function () {
+          const latest = getComparisonElements().slice().reverse().find(function (element) {
+            return element.getAttribute('data-santander-bridge-call') === callId ||
+              !elementHasUsablePayload(element);
+          });
+          if (latest && !elementHasUsablePayload(latest)) {
+            hydrateElement(latest, payload, callId);
+          }
+        }, 150);
+      }
+
+      function handleResponse(event, chatElement) {
+        const detail = event && event.detail ? event.detail : event;
+        const toolCalls = collectToolCalls(detail, [], 0, new WeakSet());
+        const uniqueCalls = [];
+        const seenObjects = new Set();
+
+        toolCalls.forEach(function (toolCall) {
+          if (!toolCall || seenObjects.has(toolCall)) return;
+          seenObjects.add(toolCall);
+          uniqueCalls.push(toolCall);
+        });
+
+        uniqueCalls.forEach(function (toolCall) {
+          const toolName = getToolName(toolCall);
+          if (!TOOL_NAMES.has(toolName)) return;
+
+          const payload = findComparisonPayload(toolCall.args || toolCall, 0, new WeakSet());
+          if (!payload) {
+            console.warn('[Santander Widget Bridge] Tool detectada sin payload comparativo:', toolCall);
+            return;
+          }
+
+          const callId = getCallId(toolCall, payload);
+          if (renderedCallIds.has(callId)) return;
+          renderedCallIds.add(callId);
+
+          // Let the SDK attempt its native rendering first. If it creates an
+          // empty component, hydrate it. If it creates nothing, render one.
+          window.setTimeout(function () {
+            const matchingElement = getComparisonElements().slice().reverse().find(function (element) {
+              return element.getAttribute('data-santander-bridge-call') === callId;
+            });
+
+            if (matchingElement && elementHasUsablePayload(matchingElement)) {
+              console.log('[Santander Widget Bridge] El SDK ya renderizó el widget:', callId);
+              return;
+            }
+
+            renderComparison(chatElement, payload, callId);
+          }, 250);
+        });
+      }
+
+      window.addEventListener('chat-messenger-loaded', function () {
+        const chatElement = document.querySelector('chat-messenger');
+        if (!chatElement || chatElement.__santanderComparisonBridgeInstalled) return;
+
+        chatElement.__santanderComparisonBridgeInstalled = true;
+        chatElement.addEventListener('chat-messenger-response-received', function (event) {
+          handleResponse(event, chatElement);
+        });
+
+        console.log('[Santander Widget Bridge] Activo. El frontend inyectará name y dfPayload.');
+      });
+    })();
+
     // ---- Deep Shadow DOM helpers + query delivery for SDK v1.16 ----
     window.santanderDeepQuery = function santanderDeepQuery(root, selector) {
       if (!root) return null;
