@@ -4,6 +4,26 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Santander Select | Asistente Virtual</title>
+  <meta name="santander-build" content="latency-optimized-v1">
+
+  <!-- Same-origin card images: preload the most common set and prefetch the rest. -->
+  <link rel="preload" as="image" href="./TS_Individuos_VISA_CREDITO_BLACK_Laura_Castro_Con_Chip_5c11f5a949.jpg" fetchpriority="high">
+  <link rel="preload" as="image" href="./TS_Individuos_AMEX_CREDITO_BLACK_Laura_Castro_Con_Chip_ff852020a0.jpg" fetchpriority="high">
+  <link rel="preload" as="image" href="./TS_Individuos_VISA_CREDITO_PLATINUM_Laura_Castro_Con_Chip_87d1678d53.jpg" fetchpriority="high">
+  <link rel="prefetch" as="image" href="./TS_Individuos_AMEX_CREDITO_PLATINUM_Laura_Castro_Con_Chip_226a1321e2.jpg">
+  <link rel="prefetch" as="image" href="./TS_Individuos_VISA_CREDITO_GOLD_Laura_Castro_Con_Chip_fdc489e2c1.jpg">
+  <link rel="prefetch" as="image" href="./TS_Individuos_Credito_AMEX_GOLD_Laura_Castro_Con_Chip_54e6c1cea6.jpg">
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <script>
+    window.SANTANDER_CARD_IMAGE_URLS = Object.freeze({
+      'santander-visa-black': './TS_Individuos_VISA_CREDITO_BLACK_Laura_Castro_Con_Chip_5c11f5a949.jpg',
+      'santander-american-express-black': './TS_Individuos_AMEX_CREDITO_BLACK_Laura_Castro_Con_Chip_ff852020a0.jpg',
+      'santander-visa-platinum': './TS_Individuos_VISA_CREDITO_PLATINUM_Laura_Castro_Con_Chip_87d1678d53.jpg',
+      'santander-american-express-platinum': './TS_Individuos_AMEX_CREDITO_PLATINUM_Laura_Castro_Con_Chip_226a1321e2.jpg',
+      'santander-visa-gold': './TS_Individuos_VISA_CREDITO_GOLD_Laura_Castro_Con_Chip_fdc489e2c1.jpg',
+      'santander-american-express-gold': './TS_Individuos_Credito_AMEX_GOLD_Laura_Castro_Con_Chip_54e6c1cea6.jpg'
+    });
+  </script>
   <script>
     // ---- Quick actions: single-box layout (patch runs before chat-messenger.js) ----
     // MutationObserver never crosses shadow boundaries, even with subtree:true — it only
@@ -80,8 +100,8 @@
       'use strict';
 
       const ELEMENT_NAME = 'santander-card-comparison';
-      const PAYLOAD_RETRY_LIMIT = 50;
-      const PAYLOAD_RETRY_INTERVAL_MS = 100;
+      const PAYLOAD_RETRY_LIMIT = 24;
+      const PAYLOAD_RETRY_INTERVAL_MS = 60;
 
       function normalizeText(value, fallback) {
         const text = value == null ? '' : String(value).trim();
@@ -740,7 +760,9 @@
             const imageUris = Array.isArray(product.imageUris)
               ? product.imageUris
               : [];
-            const imageUrl = safeHttpUrl(imageUris[0]);
+            const localImageUrl = window.SANTANDER_CARD_IMAGE_URLS &&
+              window.SANTANDER_CARD_IMAGE_URLS[normalizeText(product.productId)];
+            const imageUrl = safeHttpUrl(localImageUrl || imageUris[0]);
 
             if (imageUrl) {
               const image = document.createElement('img');
@@ -749,8 +771,9 @@
                 product.imageAltText,
                 `Tarjeta ${normalizeText(product.title)}`
               );
-              image.loading = 'lazy';
+              image.loading = 'eager';
               image.decoding = 'async';
+              image.fetchPriority = productIndex === 0 ? 'high' : 'auto';
               imageWrap.appendChild(image);
             }
 
@@ -863,7 +886,7 @@
 
       if (!customElements.get(ELEMENT_NAME)) {
         customElements.define(ELEMENT_NAME, SantanderCardComparison);
-        console.log(`[Santander Widget][CLEAN DISPLAY v1] Registrado: ${ELEMENT_NAME}`);
+        console.log(`[Santander Widget][PERF v1] Registrado: ${ELEMENT_NAME}`);
       }
     })();
   </script>
@@ -1904,6 +1927,468 @@
     })();
 
 
+    // ---- Frontend latency optimizer: cache first recommendation + instant widget ----
+    // The initial recommend_credit_cards tool response already contains widget_args.payload.
+    // Cache it while the customer reads the summary, warm the card images, and render the
+    // comparison immediately when the "Ver detalles y comparar" quick action is clicked.
+    // The original message is still sent to CXAS in the background to preserve history.
+    (function installSantanderFrontendLatencyOptimizer() {
+      const RESPONSE_EVENTS = [
+        'chat-messenger-response-received',
+        'df-response-received'
+      ];
+      const COMPARISON_ELEMENT = 'santander-card-comparison';
+      const CACHE_TOOL_NAME = 'recommend_credit_cards';
+      const SUPPRESS_BACKGROUND_MS = 45000;
+
+      const processedResponseEvents = new WeakSet();
+
+      const state = {
+        payload: null,
+        fingerprint: '',
+        cachedAt: 0,
+        pendingInstantRequest: false,
+        instantRenderInProgress: false,
+        suppressNextFingerprint: '',
+        suppressUntil: 0,
+        renderWrapperInstalled: false,
+        preloadedUrls: new Set(),
+        imageObjects: []
+      };
+
+      window.SantanderCardPerformance = state;
+
+      function sanitizeLiveValue(value) {
+        if (value == null) return value;
+        try {
+          if (typeof value === 'string') {
+            const cleaned = value.replace(/<ctrl(\d+)>/g, function (_, code) {
+              return String.fromCharCode(Number(code));
+            });
+            try { return JSON.parse(cleaned); } catch (_) { return cleaned; }
+          }
+          if (typeof value === 'object') {
+            return JSON.parse(
+              JSON.stringify(value).replace(/<ctrl(\d+)>/g, function (_, code) {
+                return String.fromCharCode(Number(code));
+              })
+            );
+          }
+        } catch (error) {
+          console.info('[Santander Perf] No se pudo normalizar un valor; se conserva el original.');
+        }
+        return value;
+      }
+
+      function decodeGoogleValue(value, depth, seen) {
+        if (value == null || depth > 14) return value;
+        value = sanitizeLiveValue(value);
+        if (Array.isArray(value)) {
+          return value.map(function (item) {
+            return decodeGoogleValue(item, depth + 1, seen);
+          });
+        }
+        if (typeof value !== 'object') return value;
+        if (seen.has(value)) return value;
+        seen.add(value);
+
+        if ('stringValue' in value) return value.stringValue;
+        if ('numberValue' in value) return Number(value.numberValue);
+        if ('integerValue' in value) return Number(value.integerValue);
+        if ('doubleValue' in value) return Number(value.doubleValue);
+        if ('boolValue' in value) return Boolean(value.boolValue);
+        if ('booleanValue' in value) return Boolean(value.booleanValue);
+        if ('nullValue' in value) return null;
+        if (value.listValue && Array.isArray(value.listValue.values)) {
+          return value.listValue.values.map(function (item) {
+            return decodeGoogleValue(item, depth + 1, seen);
+          });
+        }
+        if (value.arrayValue && Array.isArray(value.arrayValue.values)) {
+          return value.arrayValue.values.map(function (item) {
+            return decodeGoogleValue(item, depth + 1, seen);
+          });
+        }
+        const fields =
+          (value.structValue && value.structValue.fields) ||
+          (value.mapValue && value.mapValue.fields) ||
+          value.fields;
+        if (fields && typeof fields === 'object' && !Array.isArray(fields)) {
+          const decoded = {};
+          Object.entries(fields).forEach(function ([key, item]) {
+            decoded[key] = decodeGoogleValue(item, depth + 1, seen);
+          });
+          return decoded;
+        }
+
+        const decoded = {};
+        Object.entries(value).forEach(function ([key, item]) {
+          decoded[key] = decodeGoogleValue(item, depth + 1, seen);
+        });
+        return decoded;
+      }
+
+      function normalizeValue(value) {
+        return decodeGoogleValue(value, 0, new WeakSet());
+      }
+
+      function isComparisonPayload(payload) {
+        return Boolean(
+          payload &&
+          typeof payload === 'object' &&
+          Array.isArray(payload.productDetails) &&
+          payload.productDetails.length > 0 &&
+          Array.isArray(payload.features)
+        );
+      }
+
+      function clonePayload(payload) {
+        try {
+          return typeof structuredClone === 'function'
+            ? structuredClone(payload)
+            : JSON.parse(JSON.stringify(payload));
+        } catch (_) {
+          return JSON.parse(JSON.stringify(payload));
+        }
+      }
+
+      function applyLocalCardImages(payload) {
+        const prepared = clonePayload(payload);
+        const imageMap = window.SANTANDER_CARD_IMAGE_URLS || {};
+        prepared.ctaLabel = prepared.ctaLabel || 'Solicitar';
+        prepared.productDetails = (prepared.productDetails || []).map(function (product) {
+          const productId = String(product && product.productId || '').trim();
+          const localImage = imageMap[productId];
+          return Object.assign({}, product, {
+            imageUris: localImage
+              ? [localImage]
+              : (Array.isArray(product.imageUris) ? product.imageUris : [])
+          });
+        });
+        return prepared;
+      }
+
+      function payloadFingerprint(payload) {
+        if (!isComparisonPayload(payload)) return '';
+        return JSON.stringify([
+          payload.title || '',
+          payload.productDetails.map(function (product) {
+            return product.productId || product.title || '';
+          }),
+          payload.features.map(function (feature) {
+            return feature.label || '';
+          })
+        ]);
+      }
+
+      function warmImage(url, priority) {
+        if (!url) return;
+        const absoluteUrl = new URL(url, window.location.href).href;
+        if (state.preloadedUrls.has(absoluteUrl)) return;
+        state.preloadedUrls.add(absoluteUrl);
+
+        const image = new Image();
+        image.decoding = 'async';
+        image.fetchPriority = priority || 'auto';
+        image.src = absoluteUrl;
+        state.imageObjects.push(image);
+        if (typeof image.decode === 'function') {
+          image.decode().catch(function () {});
+        }
+      }
+
+      function warmPayloadImages(payload) {
+        (payload.productDetails || []).forEach(function (product, index) {
+          const url = Array.isArray(product.imageUris) ? product.imageUris[0] : '';
+          warmImage(url, index === 0 ? 'high' : 'auto');
+        });
+      }
+
+      function cacheComparisonPayload(payload, source) {
+        if (!isComparisonPayload(payload)) return false;
+        const prepared = applyLocalCardImages(payload);
+        const fingerprint = payloadFingerprint(prepared);
+        if (!fingerprint) return false;
+
+        state.payload = prepared;
+        state.fingerprint = fingerprint;
+        state.cachedAt = performance.now();
+        warmPayloadImages(prepared);
+
+        try { performance.mark('santander-card-payload-cached'); } catch (_) {}
+        console.log(
+          '[Santander Perf] Payload de tarjetas cacheado.',
+          'source:', source,
+          'cards:', prepared.productDetails.length
+        );
+
+        if (state.pendingInstantRequest) {
+          state.pendingInstantRequest = false;
+          window.setTimeout(function () {
+            renderCachedComparison('payload-arrived-after-click');
+          }, 0);
+        }
+        return true;
+      }
+
+      function findRecommendationPayload(value, depth, seen) {
+        if (value == null || depth > 14) return null;
+        const cleaned = normalizeValue(value);
+
+        if (Array.isArray(cleaned)) {
+          for (const item of cleaned) {
+            const found = findRecommendationPayload(item, depth + 1, seen);
+            if (found) return found;
+          }
+          return null;
+        }
+        if (!cleaned || typeof cleaned !== 'object') return null;
+        if (seen.has(cleaned)) return null;
+        seen.add(cleaned);
+
+        const displayName = String(cleaned.displayName || cleaned.name || '').trim();
+        const responseRoot =
+          (cleaned.response && (cleaned.response.result || cleaned.response)) ||
+          cleaned.result ||
+          cleaned.output ||
+          cleaned;
+
+        if (displayName === CACHE_TOOL_NAME) {
+          const direct =
+            responseRoot && responseRoot.widget_args && responseRoot.widget_args.payload;
+          if (isComparisonPayload(direct)) return direct;
+        }
+
+        const genericDirect =
+          cleaned.widget_args && cleaned.widget_args.payload;
+        if (isComparisonPayload(genericDirect)) return genericDirect;
+
+        const priorityKeys = [
+          'toolResponse', 'response', 'result', 'output', 'diagnosticInfo',
+          'messages', 'chunks', 'raw', 'outputs', 'payload', 'data'
+        ];
+        for (const key of priorityKeys) {
+          if (!Object.prototype.hasOwnProperty.call(cleaned, key)) continue;
+          const found = findRecommendationPayload(cleaned[key], depth + 1, seen);
+          if (found) return found;
+        }
+        for (const item of Object.values(cleaned)) {
+          const found = findRecommendationPayload(item, depth + 1, seen);
+          if (found) return found;
+        }
+        return null;
+      }
+
+      function inspectResponseEvent(event) {
+        if (event && typeof event === 'object') {
+          if (processedResponseEvents.has(event)) return;
+          processedResponseEvents.add(event);
+        }
+        const detail = event && event.detail ? event.detail : {};
+        const payload = findRecommendationPayload(detail, 0, new WeakSet());
+        if (payload) cacheComparisonPayload(payload, event.type);
+      }
+
+      function installRenderWrapper(attempt) {
+        const chatMessenger = document.querySelector('chat-messenger');
+        if (!chatMessenger || typeof chatMessenger.renderCustomCard !== 'function') {
+          if ((attempt || 0) < 40) {
+            window.setTimeout(function () {
+              installRenderWrapper((attempt || 0) + 1);
+            }, 50);
+          }
+          return;
+        }
+        if (chatMessenger.__santanderLatencyRenderWrapped) return;
+        chatMessenger.__santanderLatencyRenderWrapped = true;
+
+        const originalRenderCustomCard = chatMessenger.renderCustomCard.bind(chatMessenger);
+        chatMessenger.renderCustomCard = function (cards) {
+          const inputCards = Array.isArray(cards) ? cards : [];
+          const preparedCards = inputCards.map(function (card) {
+            if (
+              card &&
+              String(card.type || '').toLowerCase() === 'custom_template' &&
+              String(card.name || '') === COMPARISON_ELEMENT &&
+              isComparisonPayload(card.payload)
+            ) {
+              return Object.assign({}, card, {
+                payload: applyLocalCardImages(card.payload)
+              });
+            }
+            return card;
+          });
+
+          const comparisonCard = preparedCards.find(function (card) {
+            return card && card.name === COMPARISON_ELEMENT && isComparisonPayload(card.payload);
+          });
+          const fingerprint = comparisonCard ? payloadFingerprint(comparisonCard.payload) : '';
+          const now = Date.now();
+
+          if (
+            !state.instantRenderInProgress &&
+            fingerprint &&
+            fingerprint === state.suppressNextFingerprint &&
+            now < state.suppressUntil
+          ) {
+            state.suppressNextFingerprint = '';
+            state.suppressUntil = 0;
+            console.log('[Santander Perf] Widget tardío del agente omitido; ya se mostró desde caché.');
+            return undefined;
+          }
+
+          const result = originalRenderCustomCard(preparedCards);
+
+          if (state.instantRenderInProgress && fingerprint) {
+            state.suppressNextFingerprint = fingerprint;
+            state.suppressUntil = now + SUPPRESS_BACKGROUND_MS;
+          }
+
+          return result;
+        };
+
+        state.renderWrapperInstalled = true;
+        console.log('[Santander Perf] renderCustomCard optimizado y protegido contra duplicados.');
+      }
+
+      function renderCachedComparison(reason) {
+        if (!state.payload) {
+          state.pendingInstantRequest = true;
+          console.info('[Santander Perf] El click llegó antes que el payload. Se renderizará al recibirlo.');
+          return false;
+        }
+
+        const chatMessenger = document.querySelector('chat-messenger');
+        if (!chatMessenger || typeof chatMessenger.renderCustomCard !== 'function') {
+          state.pendingInstantRequest = true;
+          installRenderWrapper(0);
+          return false;
+        }
+
+        state.instantRenderInProgress = true;
+        try {
+          try { performance.mark('santander-card-instant-render-start'); } catch (_) {}
+          chatMessenger.renderCustomCard([
+            {
+              type: 'custom_template',
+              name: COMPARISON_ELEMENT,
+              payload: applyLocalCardImages(state.payload)
+            }
+          ]);
+          try {
+            performance.mark('santander-card-instant-render-end');
+            performance.measure(
+              'Santander cached widget render',
+              'santander-card-instant-render-start',
+              'santander-card-instant-render-end'
+            );
+          } catch (_) {}
+          console.log('[Santander Perf] Comparador mostrado inmediatamente desde caché.', reason);
+          return true;
+        } catch (error) {
+          console.error('[Santander Perf] No se pudo renderizar el payload cacheado.', error);
+          return false;
+        } finally {
+          state.instantRenderInProgress = false;
+        }
+      }
+
+      function clickLabel(event) {
+        const path = event && typeof event.composedPath === 'function'
+          ? event.composedPath()
+          : [];
+        const texts = [];
+        for (const item of path) {
+          if (!(item instanceof Element)) continue;
+          const tagName = String(item.tagName || '').toLowerCase();
+          const role = String(item.getAttribute('role') || '').toLowerCase();
+          if (
+            tagName === 'button' ||
+            tagName === 'md-outlined-button' ||
+            role === 'button'
+          ) {
+            texts.push(
+              item.getAttribute('aria-label') ||
+              item.getAttribute('title') ||
+              item.textContent ||
+              ''
+            );
+          }
+        }
+        if (!texts.length && event && event.target instanceof Element) {
+          texts.push(event.target.textContent || '');
+        }
+        return texts.join(' ').replace(/\s+/g, ' ').trim().toLowerCase();
+      }
+
+      function isCardDetailsAction(label) {
+        if (!label) return false;
+        return (
+          /ver\s+detalles?.*compar/.test(label) ||
+          /ver\s+(?:las\s+)?tarjetas?.*compar/.test(label) ||
+          /tarjetas?\s+recomendadas?.*compar/.test(label) ||
+          /comparar(?:las)?\s+tarjetas?/.test(label)
+        );
+      }
+
+      function handleQuickActionClick(event) {
+        const label = clickLabel(event);
+        if (!isCardDetailsAction(label)) return;
+
+        // Do not prevent the SDK click. It still sends the user's intent to CXAS
+        // so the transcript and agent state remain complete.
+        window.setTimeout(function () {
+          renderCachedComparison('quick-action-click');
+        }, 30);
+      }
+
+      function attachResponseListeners() {
+        const chatMessenger = document.querySelector('chat-messenger');
+        const container = document.querySelector('chat-messenger-container');
+        const installed = new WeakSet();
+        [chatMessenger, container, document, window].forEach(function (target) {
+          if (!target || installed.has(target)) return;
+          installed.add(target);
+          RESPONSE_EVENTS.forEach(function (eventName) {
+            target.addEventListener(eventName, inspectResponseEvent, true);
+          });
+        });
+      }
+
+      function warmAllLocalImages() {
+        Object.values(window.SANTANDER_CARD_IMAGE_URLS || {}).forEach(function (url, index) {
+          warmImage(url, index < 3 ? 'high' : 'auto');
+        });
+      }
+
+      document.addEventListener('click', handleQuickActionClick, true);
+      window.addEventListener('chat-messenger-loaded', function () {
+        attachResponseListeners();
+        installRenderWrapper(0);
+      });
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () {
+          const idle = window.requestIdleCallback || function (callback) {
+            return window.setTimeout(callback, 250);
+          };
+          idle(warmAllLocalImages);
+        }, { once: true });
+      } else {
+        const idle = window.requestIdleCallback || function (callback) {
+          return window.setTimeout(callback, 250);
+        };
+        idle(warmAllLocalImages);
+      }
+
+      window.renderCachedSantanderCards = function () {
+        return renderCachedComparison('manual-console-call');
+      };
+
+      console.log('[Santander Perf] Cache de recomendación e instant-render activos.');
+    })();
+
+
     // ---- Deep Shadow DOM helpers + query delivery for SDK v1.16 ----
     window.santanderDeepQuery = function santanderDeepQuery(root, selector) {
       if (!root) return null;
@@ -2139,14 +2624,22 @@
       window.setSantanderChatInput(inputElement, cleanText);
       console.log('[Santander] Texto cargado en el composer:', cleanText);
 
-      // Give Lit / the SDK one render cycle to enable the active send control.
-      setTimeout(function () {
+      // Try as soon as Lit has painted the updated composer. Most sends now
+      // happen after two animation frames instead of a fixed 100 ms wait.
+      function triggerComposerSend(attempt) {
         const refreshedParts = window.getSantanderComposerParts();
         const sendButton = refreshedParts.sendButton;
 
         if (sendButton && !sendButton.disabled && sendButton.getAttribute('aria-disabled') !== 'true') {
           console.log('[Santander] Botón de envío visible encontrado; ejecutando click.');
           sendButton.click();
+          return;
+        }
+
+        if (attempt < 4) {
+          setTimeout(function () {
+            triggerComposerSend(attempt + 1);
+          }, 24);
           return;
         }
 
@@ -2162,7 +2655,13 @@
             cancelable: true
           }));
         }
-      }, 100);
+      }
+
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          triggerComposerSend(0);
+        });
+      });
 
       return true;
     };
@@ -2176,7 +2675,16 @@
       fabWrapper.style.display = 'none';
       if (container) container.setAttribute('window-opened', '');
       if (typeof window.scheduleSantanderMicPosition === 'function') window.scheduleSantanderMicPosition();
-      if (intent) setTimeout(() => window.sendSantanderQuery(intent), 500);
+      if (intent) {
+        let intentAttempts = 0;
+        const sendIntentWhenReady = function () {
+          const parts = window.getSantanderComposerParts && window.getSantanderComposerParts();
+          if (parts && parts.input && window.sendSantanderQuery(intent)) return;
+          intentAttempts += 1;
+          if (intentAttempts < 18) setTimeout(sendIntentWhenReady, 40);
+        };
+        requestAnimationFrame(sendIntentWhenReady);
+      }
     }
 
     function closeSantanderChat() {
@@ -2221,6 +2729,7 @@
       let isRecording = false;
       let latestTranscript = '';
       let sendWhenRecognitionEnds = false;
+      let recognitionMessageSent = false;
       let autoConversationEnabled = false;
       let isAgentSpeaking = false;
       let restartMicTimer = null;
@@ -2334,16 +2843,23 @@
         micBtn.style.pointerEvents = 'auto';
       }
 
+      let micPositionFramePending = false;
+      let micPositionFollowupTimer = null;
+
       function scheduleMicPosition() {
-        requestAnimationFrame(positionMicButton);
-        setTimeout(positionMicButton, 80);
-        setTimeout(positionMicButton, 220);
-        setTimeout(positionMicButton, 500);
-        setTimeout(positionMicButton, 950);
+        if (!micPositionFramePending) {
+          micPositionFramePending = true;
+          requestAnimationFrame(function () {
+            micPositionFramePending = false;
+            positionMicButton();
+          });
+        }
+        clearTimeout(micPositionFollowupTimer);
+        micPositionFollowupTimer = setTimeout(positionMicButton, 180);
       }
       window.scheduleSantanderMicPosition = scheduleMicPosition;
 
-      function scheduleAutomaticListening(delay = 550) {
+      function scheduleAutomaticListening(delay = 150) {
         clearTimeout(restartMicTimer);
         if (!autoConversationEnabled || isRecording || isAgentSpeaking || awaitingAgentResponse) return;
 
@@ -2390,6 +2906,7 @@
 
         latestTranscript = '';
         sendWhenRecognitionEnds = false;
+        recognitionMessageSent = false;
         recognitionEndedByNoSpeech = false;
 
         // A manual click starts a fresh voice session. Automatic retries keep
@@ -2443,9 +2960,24 @@
             recognitionEndedByNoSpeech = false;
           }
 
-          if (hasFinalResult && latestTranscript) {
-            sendWhenRecognitionEnds = true;
-            console.log('[Santander] Resultado final detectado; se enviará automáticamente.');
+          if (hasFinalResult && latestTranscript && !recognitionMessageSent) {
+            recognitionMessageSent = true;
+            sendWhenRecognitionEnds = false;
+            awaitingAgentResponse = true;
+            console.log('[Santander] Resultado final detectado; enviando inmediatamente.');
+
+            const sent = window.sendSantanderQuery(latestTranscript);
+            if (!sent) {
+              recognitionMessageSent = false;
+              awaitingAgentResponse = false;
+              sendWhenRecognitionEnds = true;
+            } else {
+              try {
+                recognition.abort();
+              } catch (_) {
+                // The recognition session may already be closing naturally.
+              }
+            }
           }
         };
 
@@ -2488,7 +3020,7 @@
           window.activeRecognition = null;
 
           const textToSend = latestTranscript.trim();
-          if (sendWhenRecognitionEnds && textToSend) {
+          if (!recognitionMessageSent && sendWhenRecognitionEnds && textToSend) {
             noSpeechRetryCount = 0;
             awaitingAgentResponse = true;
             console.log('[Santander] Enviando al agente:', textToSend);
@@ -2507,6 +3039,7 @@
           }
 
           sendWhenRecognitionEnds = false;
+          recognitionMessageSent = false;
           recognitionEndedByNoSpeech = false;
           scheduleMicPosition();
         };
@@ -2537,7 +3070,7 @@
         subtree: true,
         attributes: true
       });
-      setInterval(positionMicButton, 900);
+      setInterval(positionMicButton, 1500);
       scheduleMicPosition();
 
       // ---- Text-to-speech for new agent messages ----
@@ -2554,6 +3087,7 @@
         'Microsoft Tomas Online',
         'Tomas'
       ];
+      let cachedSpanishVoice = null;
 
       // Normalize terms only in the copy sent to speechSynthesis.
       // The original text, currency symbols, product names and emojis remain
@@ -2605,9 +3139,10 @@
       }
 
       function getSpanishVoice() {
+        if (cachedSpanishVoice) return cachedSpanishVoice;
         const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
 
-        return (
+        cachedSpanishVoice = (
           voices.find(v => v.name === 'Microsoft Tomas Online (Natural) - Spanish (Argentina)') ||
           voices.find(v => v.name.toLowerCase().includes('microsoft tomas online')) ||
           voices.find(v => /^es-AR$/i.test(v.lang) && v.name.toLowerCase().includes('tomas')) ||
@@ -2615,6 +3150,8 @@
           voices.find(v => /^es(-|$)/i.test(v.lang)) ||
           null
         );
+
+        return cachedSpanishVoice;
       }
 
       function speakAgentText(text) {
@@ -2655,12 +3192,12 @@
           isAgentSpeaking = false;
           console.log('[Santander][TTS] Respuesta finalizada; habilitando turno del usuario.');
           scheduleMicPosition();
-          scheduleAutomaticListening(650);
+          scheduleAutomaticListening(150);
         };
         utterance.onerror = function (event) {
           isAgentSpeaking = false;
           console.error('[Santander][TTS] Error de reproducción:', event.error);
-          scheduleAutomaticListening(650);
+          scheduleAutomaticListening(250);
         };
 
         window.speechSynthesis.speak(utterance);
@@ -2722,7 +3259,7 @@
           clearTimeout(element.__santanderSpeechTimer);
           element.__santanderSpeechTimer = setTimeout(function () {
             if (spokenElements.get(element) === text) speakAgentText(text);
-          }, 1100);
+          }, 450);
         });
 
         root.querySelectorAll('*').forEach(function (element) {
@@ -2734,7 +3271,7 @@
         clearTimeout(speechScanTimer);
         speechScanTimer = setTimeout(function () {
           scanRootForAgentMessages(document);
-        }, 150);
+        }, 60);
       }
 
       function observeSpeechRoot(root) {
@@ -2759,13 +3296,19 @@
       setTimeout(function () {
         speechObserverReady = true;
         console.log('[Santander][TTS] Observador listo para leer nuevas respuestas.');
-      }, 1200);
+      }, 400);
 
       if (window.speechSynthesis) {
         window.speechSynthesis.getVoices();
         window.speechSynthesis.onvoiceschanged = function () {
-          console.log('[Santander][TTS] Voces disponibles:', window.speechSynthesis.getVoices().map(v => `${v.name} (${v.lang})`));
+          cachedSpanishVoice = null;
+          const selectedVoice = getSpanishVoice();
+          console.log(
+            '[Santander][TTS] Voz preparada:',
+            selectedVoice ? `${selectedVoice.name} (${selectedVoice.lang})` : 'fallback del navegador'
+          );
         };
+        getSpanishVoice();
       } else {
         console.warn('[Santander][TTS] SpeechSynthesis no está disponible.');
       }
