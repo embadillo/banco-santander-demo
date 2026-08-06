@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Santander Select | Asistente Virtual</title>
-  <meta name="santander-build" content="latency-optimized-v1">
+  <meta name="santander-build" content="account-home-white-mic-stable-v2">
 
   <!-- Same-origin card images: preload the most common set and prefetch the rest. -->
   <link rel="preload" as="image" href="./TS_Individuos_VISA_CREDITO_BLACK_Laura_Castro_Con_Chip_5c11f5a949.jpg" fetchpriority="high">
@@ -538,7 +538,7 @@
               overflow: hidden;
               border: 1px solid rgba(236,0,0,.12);
               border-radius: 18px;
-              background: #fffafa;
+              background: #ffffff;
             }
 
             .card.primary {
@@ -1022,164 +1022,136 @@
       justify-content: center;
       border: 2px solid #fff;
     }
-    /* SEARCH */
-    .search-strip {
-      min-height: 126px;
-      background: #f5f6f7;
+
+    /* AUTHENTICATED HOME */
+    .account-home {
+      min-height: calc(100dvh - 100px);
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
-      padding: 20px;
-      border-bottom: 1px solid #ececec;
+      padding: 64px 28px;
+      background: #ffffff;
     }
-    .search-box {
-      width: min(780px, calc(100vw - 48px));
-      height: 62px;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      color: #777;
-      font-size: 24px;
+    .account-shell {
+      width: min(920px, 100%);
     }
-    .search-box svg { color: #2388ad; flex: 0 0 auto; }
-    /* HERO */
-    .hero {
-      display: grid;
-      grid-template-columns: 1.08fr .92fr;
-      min-height: 430px;
-      background:
-        radial-gradient(circle at 88% 24%, rgba(236,0,0,.09), transparent 28%),
-        linear-gradient(135deg, #fff 0%, #fff8f8 62%, #f7f7f7 100%);
-      color: var(--ink);
-      overflow: hidden;
-      border-bottom: 1px solid #ececec;
-      position: relative;
-    }
-    .hero::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      width: 7px;
-      background: var(--santander-red);
-    }
-    .hero-copy {
-      padding: 72px 7%;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-    .eyebrow {
-      display: inline-flex;
-      width: fit-content;
-      padding: 7px 12px;
-      border-radius: 3px;
-      background: #fff0f0;
+    .account-kicker {
+      margin: 0 0 10px;
+      color: #9a0000;
       font-size: 12px;
-      font-weight: 700;
+      font-weight: 800;
       letter-spacing: 1.5px;
-      margin-bottom: 18px;
-      color: #b40000;
+      text-transform: uppercase;
     }
-    .hero h1 {
-      font-size: clamp(36px, 4.5vw, 62px);
-      line-height: 1.05;
-      margin: 0 0 18px;
-      letter-spacing: -1.8px;
+    .account-title {
+      margin: 0;
+      color: #1f1f1f;
+      font-size: clamp(30px, 4vw, 46px);
+      line-height: 1.08;
+      letter-spacing: -1.2px;
     }
-    .hero p {
-      max-width: 650px;
-      font-size: 18px;
-      line-height: 1.6;
-      margin: 0 0 30px;
-      color: #5f5f5f;
+    .account-subtitle {
+      margin: 12px 0 30px;
+      color: #6b6b6b;
+      font-size: 17px;
     }
-    .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; }
-    .hero-btn {
-      border: 0;
-      border-radius: 6px;
-      padding: 14px 24px;
-      font-weight: 700;
-      background: var(--santander-red);
-      color: #fff;
-      box-shadow: 0 8px 18px rgba(236,0,0,.18);
+    .balance-panel {
+      width: min(580px, 100%);
+      padding: 28px;
+      border: 1px solid #e1e1e1;
+      border-radius: 24px;
+      background: #ffffff;
+      box-shadow: 0 18px 50px rgba(25, 25, 25, .08);
     }
-    .hero-btn.secondary {
-      background: #fff;
-      color: #9d0000;
-      border: 1px solid #e6bcbc;
-    }
-    .hero-visual {
-      position: relative;
+    .balance-header {
       display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .balance-label {
+      display: block;
+      margin-bottom: 7px;
+      color: #2b2b2b;
+      font-size: 17px;
+      font-weight: 700;
+    }
+    .account-alias {
+      display: block;
+      color: #777777;
+      font-size: 13px;
+    }
+    .balance-eye {
+      width: 42px;
+      height: 42px;
+      flex: 0 0 42px;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      background: radial-gradient(circle at center, rgba(236,0,0,.08), transparent 62%);
-    }
-    .hero-card {
-      width: min(360px, 80%);
-      aspect-ratio: 1.58;
-      border-radius: 20px;
-      background: linear-gradient(145deg, #242424, #070707);
-      box-shadow: 0 30px 60px rgba(0,0,0,.28);
-      padding: 28px;
-      transform: rotate(-4deg);
-      position: relative;
-      overflow: hidden;
-    }
-    .hero-card::after {
-      content: '';
-      position: absolute;
-      width: 240px;
-      height: 240px;
+      border: 1px solid #dddddd;
       border-radius: 50%;
-      background: rgba(236,0,0,.35);
-      right: -85px;
-      top: -80px;
+      background: #ffffff;
+      color: #555555;
+      transition: border-color .15s ease, color .15s ease, background .15s ease;
     }
-    .hero-card-title { font-size: 24px; font-weight: 700; position: relative; z-index: 1; }
-    .hero-card-sub { margin-top: 10px; color: rgba(255,255,255,.7); position: relative; z-index: 1; }
-    .hero-card-number { position: absolute; bottom: 28px; left: 28px; letter-spacing: 4px; z-index: 1; }
-    /* QUICK ACTIONS */
-    .quick-section { padding: 54px 7% 70px; }
-    .section-title {
-      color: #666;
+    .balance-eye:hover {
+      border-color: #ec0000;
+      color: #ec0000;
+      background: #fff7f7;
+    }
+    .balance-eye svg {
+      width: 21px;
+      height: 21px;
+      pointer-events: none;
+    }
+    .balance-amount {
+      min-height: 74px;
+      display: flex;
+      align-items: baseline;
+      gap: 9px;
+      margin: 30px 0 22px;
+      color: #171717;
+      font-variant-numeric: tabular-nums;
+    }
+    .balance-currency {
+      font-size: 25px;
+      font-weight: 650;
+    }
+    .balance-value {
+      font-size: clamp(34px, 6vw, 52px);
+      font-weight: 750;
+      letter-spacing: .4px;
+      line-height: 1;
+    }
+    .balance-value.is-masked {
+      letter-spacing: 5px;
+      transform: translateY(3px);
+    }
+    .balance-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding-top: 20px;
+      border-top: 1px solid #ededed;
+      color: #777777;
+      font-size: 13px;
+    }
+    .account-assistant-btn {
+      min-height: 42px;
+      padding: 0 18px;
+      border: 0;
+      border-radius: 999px;
+      background: #ec0000;
+      color: #ffffff;
       font-size: 14px;
       font-weight: 700;
-      letter-spacing: 1.4px;
-      margin-bottom: 24px;
+      box-shadow: 0 7px 18px rgba(236, 0, 0, .20);
+      transition: background .15s ease, transform .15s ease;
     }
-    .quick-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 16px;
-    }
-    .quick-card {
-      min-height: 160px;
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      padding: 24px;
-      background: #fff;
-      transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
-    }
-    .quick-card:hover {
-      transform: translateY(-3px);
-      border-color: #f4aaaa;
-      box-shadow: 0 12px 28px rgba(0,0,0,.08);
-    }
-    .quick-icon { font-size: 28px; margin-bottom: 16px; }
-    .quick-card h3 { margin: 0 0 8px; font-size: 17px; }
-    .quick-card p { margin: 0; color: #747474; line-height: 1.5; font-size: 14px; }
-    footer {
-      border-top: 1px solid #e2e2e2;
-      background: #fafafa;
-      padding: 24px 7%;
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      color: #777;
-      font-size: 12px;
+    .account-assistant-btn:hover {
+      background: #c80000;
+      transform: translateY(-1px);
     }
     /* CHAT: wrapper controls positioning; SDK controls its own internal layout */
     #chat-wrapper {
@@ -1199,9 +1171,9 @@
       height: 100% !important;
       min-height: 0 !important;
       /* Containers / Surfaces */
-      --chat-messenger-color--surface: #fffafa;
+      --chat-messenger-color--surface: #ffffff;
       --chat-messenger-color--surface-container: #ffffff;
-      --chat-messenger-color--surface-container-high: #fff2f2;
+      --chat-messenger-color--surface-container-high: #ffffff;
       /* Brand / Accent */
       --chat-messenger-color--primary: #ec0000;
       --chat-messenger-color--primary-container: #fff0f0;
@@ -1311,9 +1283,7 @@
       .topbar { grid-template-columns: auto 1fr auto; }
       .brand { font-size: 25px; }
       .topbar-right .pill:first-child, .icon-btn:nth-of-type(n+2) { display: none; }
-      .hero { grid-template-columns: 1fr; }
-      .hero-visual { display: none; }
-      .quick-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .account-shell { width: min(720px, 100%); }
     }
     @media (max-width: 620px) {
       .topbar { height: 72px; padding: 0 14px; gap: 10px; }
@@ -1322,12 +1292,11 @@
       .brand { font-size: 19px; }
       .brand svg { width: 25px; height: 30px; }
       .avatar-pill, .topbar-right .icon-btn { display: none; }
-      .search-strip { min-height: 92px; }
-      .search-box { font-size: 17px; }
-      .hero-copy { padding: 52px 24px; }
-      .quick-section { padding: 40px 20px 56px; }
-      .quick-grid { grid-template-columns: 1fr; }
-      footer { flex-direction: column; }
+      .account-home { min-height: calc(100dvh - 72px); padding: 36px 18px; }
+      .account-subtitle { margin-bottom: 22px; }
+      .balance-panel { padding: 22px 20px; border-radius: 20px; }
+      .balance-meta { align-items: stretch; flex-direction: column; }
+      .account-assistant-btn { width: 100%; }
       #chat-wrapper {
         right: 12px;
         bottom: 12px;
@@ -1375,61 +1344,78 @@
       </button>
     </div>
   </header>
-  <section class="search-strip">
-    <div class="search-box">
-      <svg width="31" height="31" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
-      <span>Buscar operaciones, productos, secciones y consultas</span>
-    </div>
-  </section>
-  <main>
-    <section class="hero">
-      <div class="hero-copy">
-        <div class="eyebrow">EXPERIENCIA SELECT</div>
-        <h1>Todo lo que necesitás,<br><span style="color:#ec0000">más simple.</span></h1>
-        <p>Consultá, resolvé y descubrí productos desde una experiencia digital clara, segura y personalizada.</p>
-        <div class="hero-actions">
-          <button class="hero-btn" onclick="openSantanderChat()">Hablar con el asistente</button>
-          <button class="hero-btn secondary">Conocer beneficios</button>
+  <main class="account-home">
+    <section class="account-shell" aria-labelledby="account-title">
+      <p class="account-kicker">Mi cuenta</p>
+      <h1 id="account-title" class="account-title">Hola, Emiliano</h1>
+      <p class="account-subtitle">Este es el resumen de tu cuenta Santander Select.</p>
+
+      <article class="balance-panel" aria-label="Saldo disponible">
+        <div class="balance-header">
+          <div>
+            <span class="balance-label">Saldo disponible</span>
+            <span class="account-alias">Cuenta Santander Select •••• 9012</span>
+          </div>
+          <button
+            id="balance-toggle"
+            class="balance-eye"
+            type="button"
+            aria-label="Mostrar saldo"
+            aria-pressed="false"
+            title="Mostrar saldo"
+          >
+            <svg class="balance-eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/>
+              <circle cx="12" cy="12" r="2.7"/>
+            </svg>
+            <svg class="balance-eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+              <path d="M3 3l18 18"/>
+              <path d="M10.6 6.2A10.5 10.5 0 0 1 12 6c6.5 0 10 6 10 6a17.5 17.5 0 0 1-2.2 3"/>
+              <path d="M6.4 6.4C3.6 8.2 2 12 2 12s3.5 6 10 6c1.8 0 3.4-.5 4.8-1.2"/>
+              <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>
+            </svg>
+          </button>
         </div>
-      </div>
-      <div class="hero-visual">
-        <div class="hero-card">
-          <div class="hero-card-title">Santander Select</div>
-          <div class="hero-card-sub">Visa Infinite</div>
-          <div class="hero-card-number">•••• 4821</div>
+
+        <div id="balance-amount" class="balance-amount" data-balance="3.248.650,00">
+          <span class="balance-currency">$</span>
+          <span class="balance-value is-masked" aria-live="polite">********</span>
         </div>
-      </div>
-    </section>
-    <section class="quick-section">
-      <div class="section-title">ACCESOS RÁPIDOS</div>
-      <div class="quick-grid">
-        <a class="quick-card" href="#" onclick="openSantanderChat('Quiero consultar mis tarjetas'); return false;">
-          <div class="quick-icon">💳</div>
-          <h3>Mis tarjetas</h3>
-          <p>Consultá límites, consumos, vencimientos y opciones de seguridad.</p>
-        </a>
-        <a class="quick-card" href="#" onclick="openSantanderChat('Quiero realizar un pago'); return false;">
-          <div class="quick-icon">🧾</div>
-          <h3>Pagos y transferencias</h3>
-          <p>Pagá servicios, transferí dinero y revisá operaciones programadas.</p>
-        </a>
-        <a class="quick-card" href="#" onclick="openSantanderChat('Quiero conocer mis productos'); return false;">
-          <div class="quick-icon">🏦</div>
-          <h3>Productos</h3>
-          <p>Conocé cuentas, tarjetas, préstamos y alternativas para invertir.</p>
-        </a>
-        <a class="quick-card" href="#" onclick="openSantanderChat('Necesito ayuda con mis claves'); return false;">
-          <div class="quick-icon">🔐</div>
-          <h3>Claves y seguridad</h3>
-          <p>Recuperá accesos y obtené ayuda para operar de forma segura.</p>
-        </a>
-      </div>
+
+        <div class="balance-meta">
+          <span>Saldo en pesos argentinos</span>
+          <button class="account-assistant-btn" type="button" onclick="openSantanderChat()">Hablar con Santi</button>
+        </div>
+      </article>
     </section>
   </main>
-  <footer>
-    <span>© 2026 Banco Santander. Demo de experiencia conversacional.</span>
-    <span>Asistente impulsado por Google Cloud</span>
-  </footer>
+  <script>
+    (function setupBalanceVisibility() {
+      const toggle = document.getElementById('balance-toggle');
+      const amount = document.getElementById('balance-amount');
+      const value = amount && amount.querySelector('.balance-value');
+      const openIcon = toggle && toggle.querySelector('.balance-eye-open');
+      const closedIcon = toggle && toggle.querySelector('.balance-eye-closed');
+      if (!toggle || !amount || !value) return;
+
+      let visible = false;
+      function render() {
+        value.textContent = visible ? amount.dataset.balance : '********';
+        value.classList.toggle('is-masked', !visible);
+        toggle.setAttribute('aria-pressed', visible ? 'true' : 'false');
+        toggle.setAttribute('aria-label', visible ? 'Ocultar saldo' : 'Mostrar saldo');
+        toggle.title = visible ? 'Ocultar saldo' : 'Mostrar saldo';
+        if (openIcon) openIcon.hidden = visible;
+        if (closedIcon) closedIcon.hidden = !visible;
+      }
+
+      toggle.addEventListener('click', function () {
+        visible = !visible;
+        render();
+      });
+      render();
+    })();
+  </script>
   <script>
     window.addEventListener('chat-messenger-loaded', function () {
       try {
@@ -2784,15 +2770,10 @@
         root.appendChild(style);
       }
 
-      function mountMicInActiveComposer(root) {
-        if (root instanceof ShadowRoot) {
-          injectMicStyles(root);
-          if (micBtn.getRootNode() !== root) root.appendChild(micBtn);
-          return;
+      function mountMicInDocument() {
+        if (micBtn.parentNode !== document.body) {
+          document.body.appendChild(micBtn);
         }
-
-        const wrapper = document.getElementById('chat-wrapper');
-        if (wrapper && micBtn.parentNode !== wrapper) wrapper.prepend(micBtn);
       }
 
       function hideMicButton() {
@@ -2802,6 +2783,30 @@
         micBtn.style.top = '-9999px';
       }
       window.hideSantanderMicButton = hideMicButton;
+
+      let observedComposerInput = null;
+      let observedComposerHost = null;
+      const micResizeObserver = typeof ResizeObserver === 'function'
+        ? new ResizeObserver(function () { scheduleMicPosition(); })
+        : null;
+
+      function observeActiveComposer(parts) {
+        if (!micResizeObserver) return;
+        const nextInput = parts && parts.input;
+        const nextHost = parts && parts.composer;
+
+        if (nextInput !== observedComposerInput) {
+          if (observedComposerInput) micResizeObserver.unobserve(observedComposerInput);
+          observedComposerInput = nextInput || null;
+          if (observedComposerInput) micResizeObserver.observe(observedComposerInput);
+        }
+
+        if (nextHost !== observedComposerHost) {
+          if (observedComposerHost) micResizeObserver.unobserve(observedComposerHost);
+          observedComposerHost = nextHost || null;
+          if (observedComposerHost) micResizeObserver.observe(observedComposerHost);
+        }
+      }
 
       function positionMicButton() {
         const wrapper = document.getElementById('chat-wrapper');
@@ -2814,25 +2819,22 @@
         }
 
         const inputRect = inputElement.getBoundingClientRect();
-        if (!inputRect.width || !inputRect.height) {
+        if (!inputRect.width || !inputRect.height || !window.santanderIsVisible(inputElement)) {
           hideMicButton();
           return;
         }
 
-        mountMicInActiveComposer(parts.mountRoot);
+        mountMicInDocument();
+        observeActiveComposer(parts);
 
-        const sendRect = parts.sendButton && window.santanderIsVisible(parts.sendButton)
-          ? parts.sendButton.getBoundingClientRect()
-          : null;
-        const anchorRect = sendRect || inputRect;
-
-        // Put the mic immediately before the real send control. This is farther
-        // right than the previous input.right - 72 calculation and works in both
-        // compact and expanded layouts.
-        let left = sendRect
-          ? sendRect.left - MIC_SIZE - MIC_SEND_GAP
-          : inputRect.right - MIC_SIZE - 10;
-        let top = anchorRect.top + (anchorRect.height - MIC_SIZE) / 2;
+        // Anchor to the input itself, never to the send button. The SDK can move
+        // the send button when the textarea grows or when the dialog expands.
+        // Keeping a fixed inset from the input's bottom-right corner makes the mic
+        // remain visually stable in single-line, multiline, compact and expanded modes.
+        const rightInset = 11;
+        const bottomInset = inputRect.height > 58 ? 9 : Math.max(5, (inputRect.height - MIC_SIZE) / 2);
+        let left = inputRect.right - MIC_SIZE - rightInset;
+        let top = inputRect.bottom - MIC_SIZE - bottomInset;
 
         left = Math.max(6, Math.min(left, window.innerWidth - MIC_SIZE - 6));
         top = Math.max(6, Math.min(top, window.innerHeight - MIC_SIZE - 6));
@@ -3062,15 +3064,26 @@
         }
       });
 
-      window.addEventListener('resize', scheduleMicPosition);
+      window.addEventListener('resize', scheduleMicPosition, { passive: true });
       window.addEventListener('scroll', scheduleMicPosition, true);
       document.addEventListener('click', scheduleMicPosition, true);
+      document.addEventListener('focusin', scheduleMicPosition, true);
+      document.addEventListener('input', scheduleMicPosition, true);
+      document.addEventListener('transitionend', scheduleMicPosition, true);
+
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', scheduleMicPosition, { passive: true });
+        window.visualViewport.addEventListener('scroll', scheduleMicPosition, { passive: true });
+      }
+
       new MutationObserver(scheduleMicPosition).observe(document.documentElement, {
         childList: true,
-        subtree: true,
-        attributes: true
+        subtree: true
       });
-      setInterval(positionMicButton, 1500);
+
+      // Low-frequency fallback for SDK updates that do not emit a useful event.
+      setInterval(positionMicButton, 1200);
+      mountMicInDocument();
       scheduleMicPosition();
 
       // ---- Text-to-speech for new agent messages ----
@@ -3092,31 +3105,79 @@
       // Normalize terms only in the copy sent to speechSynthesis.
       // The original text, currency symbols, product names and emojis remain
       // unchanged in the visual chat.
+      function formatPesoAmountForSpeech(rawAmount, perMonth) {
+        const amount = String(rawAmount || '').trim();
+        const numericValue = Number(
+          amount.replace(/\./g, '').replace(',', '.')
+        );
+
+        let spokenAmount = amount;
+
+        // Exact millions need "de pesos" in Spanish:
+        // "$18.000.000" -> "18 millones de pesos".
+        if (
+          Number.isFinite(numericValue) &&
+          Number.isInteger(numericValue) &&
+          numericValue >= 1000000 &&
+          numericValue % 1000000 === 0
+        ) {
+          const millions = numericValue / 1000000;
+          spokenAmount = millions === 1
+            ? 'un millón de pesos'
+            : `${millions} millones de pesos`;
+        } else {
+          spokenAmount = `${amount} pesos`;
+        }
+
+        return perMonth ? `${spokenAmount} por mes` : spokenAmount;
+      }
+
       function normalizeCurrencyForSpeech(text) {
         return String(text || '')
-          // Explicit US-dollar formats must remain dollars.
+          // Explicit US-dollar formats remain dollars.
           .replace(/\bUSD\s*\$?\s*([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)/gi, '$1 dólares estadounidenses')
           .replace(/US\$\s*([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)/gi, '$1 dólares estadounidenses')
           .replace(/U\$S\s*([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)/gi, '$1 dólares estadounidenses')
 
-          // Explicit Argentine-peso formats.
-          .replace(/\bARS\s*\$?\s*([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)/gi, '$1 pesos argentinos')
+          // Explicit Argentine-peso formats. The spoken copy omits "argentinos".
+          .replace(
+            /\bARS\s*\$?\s*([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)/gi,
+            function (_, amount) {
+              return formatPesoAmountForSpeech(amount, false);
+            }
+          )
 
           // Monthly amounts such as "$6.400/mes".
-          .replace(/\$\s*([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)\s*\/\s*mes\b/gi, '$1 pesos argentinos por mes')
+          .replace(
+            /\$\s*([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)\s*\/\s*mes\b/gi,
+            function (_, amount) {
+              return formatPesoAmountForSpeech(amount, true);
+            }
+          )
 
-          // In this Santander Argentina demo, a bare "$" means Argentine pesos.
-          .replace(/\$\s*([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)/g, '$1 pesos argentinos')
+          // In this Santander Argentina demo, a bare "$" means pesos.
+          .replace(
+            /\$\s*([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)/g,
+            function (_, amount) {
+              return formatPesoAmountForSpeech(amount, false);
+            }
+          )
 
-          // Defensive cleanup when the source already names the currency.
-          .replace(/\bpesos argentinos\s+pesos(?: argentinos)?\b/gi, 'pesos argentinos')
+          // Keep the spoken result concise and remove duplicated currency words.
+          .replace(/\bpesos argentinos\b/gi, 'pesos')
+          .replace(/\bde pesos\s+pesos\b/gi, 'de pesos')
+          .replace(/\bpesos\s+pesos\b/gi, 'pesos')
           .replace(/\bdólares estadounidenses\s+dólares(?: estadounidenses)?\b/gi, 'dólares estadounidenses');
       }
 
       function normalizeProductTermsForSpeech(text) {
         return String(text || '')
           // Santander's financing product is pronounced "Plan Ve", not "Plan uve".
-          .replace(/\bPlan\s+V\b/gi, 'Plan Ve');
+          .replace(/\bPlan\s+V\b/gi, 'Plan Ve')
+          // Force the natural Spanish pronunciation: "Plátinum".
+          .replace(/\bPlatinum\b/gi, 'Plátinum')
+          // In Argentina, YPF is pronounced "i pe efe", not "y griega pe efe".
+          .replace(/\bY\s*\.?\s*P\s*\.?\s*F\b\.?/gi, 'i pe efe');
       }
 
       function cleanSpeechText(text) {
@@ -3315,15 +3376,15 @@
     });
 
   </script>
+  <button id="custom-mic-btn" title="Dictar por voz" aria-label="Dictar por voz">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+      <line x1="12" y1="19" x2="12" y2="23"/>
+      <line x1="8" y1="23" x2="16" y2="23"/>
+    </svg>
+  </button>
   <div id="chat-wrapper">
-    <button id="custom-mic-btn" title="Dictar por voz" aria-label="Dictar por voz">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-        <line x1="12" y1="19" x2="12" y2="23"/>
-        <line x1="8" y1="23" x2="16" y2="23"/>
-      </svg>
-    </button>
     <chat-messenger url-allowlist="*" language-code="es" max-query-length="-1">
       <chat-messenger-container
         chat-title="Banco Santander"
@@ -3333,13 +3394,11 @@
         custom-css="
           * { font-family: 'DM Sans', Arial, sans-serif !important; box-sizing: border-box !important; }
           main, [class*='chat-body'], [class*='message-list'], [class*='messages'], [class*='conversation'] {
-            background:
-              radial-gradient(circle at 100% 0%, rgba(236,0,0,.035), transparent 34%),
-              linear-gradient(180deg, #ffffff 0%, #fffafa 100%) !important;
+            background: #ffffff !important;
             padding: 16px !important;
           }
           header, [class*='header'], [class*='title-bar'], [class*='toolbar'] {
-            background: linear-gradient(180deg, #ffffff 0%, #fffdfd 100%) !important;
+            background: #ffffff !important;
             border-bottom: 1px solid #eadede !important;
             box-shadow: inset 0 -3px 0 #ec0000 !important;
             padding: 13px 15px !important;
@@ -3361,10 +3420,10 @@
           /* Bot bubble: was transparent (blended into the background) — now a real card
              so messages read distinctly instead of floating text on a gray field */
           [class*='bot-message'], [class*='agent-message'], [class*='incoming'], [class*='received'] {
-            background: var(--chat-messenger-color--surface-container-high, #fff2f2) !important;
+            background: #ffffff !important;
             color: #1a1a1a !important;
-            border: 1px solid rgba(236,0,0,.08) !important;
-            box-shadow: 0 2px 8px rgba(140,0,0,.05) !important;
+            border: 1px solid #e8e8e8 !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,.045) !important;
             border-radius: 4px var(--chat-messenger-shape--corner-value-medium, 16px)
                            var(--chat-messenger-shape--corner-value-medium, 16px)
                            var(--chat-messenger-shape--corner-value-medium, 16px) !important;
@@ -3449,7 +3508,7 @@
           }
           /* ===== Input / footer ===== */
           [class*='input-container'], [class*='input-area'], [class*='composer'], [class*='footer'] {
-            background: linear-gradient(180deg, #fffdfd 0%, #ffffff 100%) !important;
+            background: #ffffff !important;
             border-top: 1px solid #eadede !important;
             box-shadow: 0 -8px 22px rgba(80,0,0,.035) !important;
             padding: 11px 12px !important;
@@ -3458,9 +3517,9 @@
             background: #ffffff !important;
             color: #242424 !important;
             border: 1px solid #dfd3d3 !important;
-            border-radius: 999px !important;
+            border-radius: 24px !important;
             min-height: 46px !important;
-            padding: 10px 92px 10px 16px !important;
+            padding: 10px 62px 10px 16px !important;
             outline: none !important;
             box-shadow: inset 0 1px 2px rgba(0,0,0,.02) !important;
             transition: border-color .16s ease, box-shadow .16s ease !important;
@@ -3489,7 +3548,7 @@
             display: inline-flex !important;
           }
           [class*='typing'], [class*='thinking'], [class*='loading'] {
-            background: #fff8f8 !important;
+            background: #f7f7f7 !important;
             border: 1px solid #efdede !important;
             border-radius: 14px !important;
             padding: 10px 14px !important;
