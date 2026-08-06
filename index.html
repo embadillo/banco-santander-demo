@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Santander | Asistente Virtual</title>
-  <meta name="santander-build" content="account-dashboard-enriched-mic-final-v1">
+  <title>Santander Select | Asistente Virtual</title>
+  <meta name="santander-build" content="account-dashboard-white-mic-polished-v2">
 
   <!-- Same-origin card images: preload the most common set and prefetch the rest. -->
   <link rel="preload" as="image" href="./TS_Individuos_VISA_CREDITO_BLACK_Laura_Castro_Con_Chip_5c11f5a949.jpg" fetchpriority="high">
@@ -64,6 +64,32 @@
           '}',
           '.quick-actions md-outlined-button:last-of-type {',
           '  border-bottom: 0 !important;',
+          '}',
+          ':host {',
+          '  --chat-messenger-color--background: #ffffff !important;',
+          '  --chat-messenger-color--surface: #ffffff !important;',
+          '  --chat-messenger-color--surface-dim: #ffffff !important;',
+          '  --chat-messenger-color--surface-bright: #ffffff !important;',
+          '  --chat-messenger-color--surface-container-lowest: #ffffff !important;',
+          '  --chat-messenger-color--surface-container-low: #ffffff !important;',
+          '  --chat-messenger-color--surface-container: #ffffff !important;',
+          '  --chat-messenger-color--surface-container-high: #ffffff !important;',
+          '  --chat-messenger-color--surface-container-highest: #ffffff !important;',
+          '  --md-sys-color-background: #ffffff !important;',
+          '  --md-sys-color-surface: #ffffff !important;',
+          '  --md-sys-color-surface-container-lowest: #ffffff !important;',
+          '  --md-sys-color-surface-container-low: #ffffff !important;',
+          '  --md-sys-color-surface-container: #ffffff !important;',
+          '  --md-sys-color-surface-container-high: #ffffff !important;',
+          '  --md-sys-color-surface-container-highest: #ffffff !important;',
+          '}',
+          'main, dialog, md-dialog, [role="dialog"],',
+          '[class*="chat-body"], [class*="message-list"], [class*="messages"],',
+          '[class*="conversation"], [class*="dialog"], [class*="modal"],',
+          '[class*="sheet"], [class*="content-area"], [class*="scroll-container"],',
+          '[class*="input-container"], [class*="input-area"], [class*="composer"], [class*="footer"] {',
+          '  background-color: #ffffff !important;',
+          '  background-image: none !important;',
           '}'
         ].join('\n');
         root.appendChild(style);
@@ -1531,6 +1557,7 @@
       width: 400px;
       height: min(640px, calc(100vh - 48px));
       z-index: 9999;
+      background: #ffffff;
     }
     chat-messenger {
       display: block !important;
@@ -1538,10 +1565,24 @@
       max-width: 400px !important;
       height: 100% !important;
       min-height: 0 !important;
+      background: #ffffff !important;
       /* Containers / Surfaces */
+      --chat-messenger-color--background: #ffffff;
       --chat-messenger-color--surface: #ffffff;
+      --chat-messenger-color--surface-dim: #ffffff;
+      --chat-messenger-color--surface-bright: #ffffff;
+      --chat-messenger-color--surface-container-lowest: #ffffff;
+      --chat-messenger-color--surface-container-low: #ffffff;
       --chat-messenger-color--surface-container: #ffffff;
       --chat-messenger-color--surface-container-high: #ffffff;
+      --chat-messenger-color--surface-container-highest: #ffffff;
+      --md-sys-color-background: #ffffff;
+      --md-sys-color-surface: #ffffff;
+      --md-sys-color-surface-container-lowest: #ffffff;
+      --md-sys-color-surface-container-low: #ffffff;
+      --md-sys-color-surface-container: #ffffff;
+      --md-sys-color-surface-container-high: #ffffff;
+      --md-sys-color-surface-container-highest: #ffffff;
       /* Brand / Accent */
       --chat-messenger-color--primary: #ec0000;
       --chat-messenger-color--primary-container: #fff0f0;
@@ -1592,6 +1633,7 @@
       flex-direction: column !important;
       height: 100% !important;
       min-height: 0 !important;
+      background: #ffffff !important;
     }
     #fab-wrapper {
       position: fixed;
@@ -1619,11 +1661,12 @@
       left: -9999px;
       top: -9999px;
       z-index: 2147483000;
-      width: 36px;
-      height: 36px;
+      width: 34px;
+      height: 34px;
       border-radius: 50%;
-      border: 1px solid #dfd3d3;
+      border: 1px solid #e3dada;
       background: #ffffff;
+      box-shadow: 0 2px 8px rgba(0,0,0,.07);
       color: #666666;
       display: flex;
       align-items: center;
@@ -3248,8 +3291,9 @@
       let noSpeechRetryCount = 0;
 
       const styledMicRoots = new WeakSet();
-      const MIC_SIZE = 36;
-      const MIC_SEND_GAP = 7;
+      const MIC_SIZE = 34;
+      const MIC_RIGHT_INSET = 10;
+      const MIC_BOTTOM_INSET = 8;
 
       function injectMicStyles(root) {
         if (!(root instanceof ShadowRoot) || styledMicRoots.has(root)) return;
@@ -3264,12 +3308,13 @@
           '  left: -9999px;',
           '  top: -9999px;',
           '  z-index: 2147483000 !important;',
-          '  width: 36px;',
-          '  height: 36px;',
+          '  width: 34px;',
+          '  height: 34px;',
           '  box-sizing: border-box;',
           '  border-radius: 50%;',
-          '  border: 1px solid #dfd3d3;',
+          '  border: 1px solid #e3dada;',
           '  background: #ffffff;',
+          '  box-shadow: 0 2px 8px rgba(0,0,0,.07);',
           '  color: #666666;',
           '  display: flex;',
           '  align-items: center;',
@@ -3349,7 +3394,6 @@
         const wrapper = document.getElementById('chat-wrapper');
         const parts = window.getSantanderComposerParts && window.getSantanderComposerParts();
         const inputElement = parts && parts.input;
-        const sendButton = parts && parts.sendButton;
 
         if (!wrapper || wrapper.style.visibility === 'hidden' || !inputElement) {
           hideMicButton();
@@ -3365,22 +3409,15 @@
         mountMicInActiveRoot(parts);
         observeActiveComposer(parts);
 
-        // Keep the mic visually paired with the send button. The result stays
-        // consistent in compact, multiline and expanded layouts.
-        let left;
-        let top;
-        const sendIsUsable = sendButton && window.santanderIsVisible(sendButton);
+        // Anchor the mic inside the actual text field, not to the send button.
+        // It remains 10 px from the right edge and 8 px above the bottom outline,
+        // including when the textarea grows or the chat switches to expanded mode.
+        let left = inputRect.right - MIC_SIZE - MIC_RIGHT_INSET;
+        let top = inputRect.bottom - MIC_SIZE - MIC_BOTTOM_INSET;
 
-        if (sendIsUsable) {
-          const sendRect = sendButton.getBoundingClientRect();
-          left = sendRect.left - MIC_SIZE - MIC_SEND_GAP;
-          top = sendRect.top + (sendRect.height - MIC_SIZE) / 2;
-        } else {
-          // Short fallback while the SDK is between render frames.
-          const rightInset = 12;
-          left = inputRect.right - MIC_SIZE - rightInset;
-          top = inputRect.top + (inputRect.height - MIC_SIZE) / 2;
-        }
+        // A single-line input can be slightly shorter than the preferred geometry.
+        // Keep at least 4 px above the top edge without ever sitting on the bottom line.
+        top = Math.max(inputRect.top + 4, top);
 
         left = Math.max(6, Math.min(left, window.innerWidth - MIC_SIZE - 6));
         top = Math.max(6, Math.min(top, window.innerHeight - MIC_SIZE - 6));
@@ -4056,8 +4093,9 @@
           /* ===== Input / footer ===== */
           [class*='input-container'], [class*='input-area'], [class*='composer'], [class*='footer'] {
             background: #ffffff !important;
-            border-top: 1px solid #eadede !important;
-            box-shadow: 0 -8px 22px rgba(80,0,0,.035) !important;
+            background-image: none !important;
+            border-top: 0 !important;
+            box-shadow: none !important;
             padding: 11px 12px !important;
           }
           input, textarea, [contenteditable] {
@@ -4095,13 +4133,27 @@
             display: inline-flex !important;
           }
           [class*='typing'], [class*='thinking'], [class*='loading'] {
-            background: #f7f7f7 !important;
-            border: 1px solid #efdede !important;
+            background: #ffffff !important;
+            border: 1px solid #eeeeee !important;
             border-radius: 14px !important;
             padding: 10px 14px !important;
           }
           a { color: #c80000 !important; }
         ">
+        <style>
+          /* Final white-surface lock for SDK versions that introduce extra Material layers. */
+          :host, *, *::before, *::after {
+            --chat-messenger-color--background: #ffffff !important;
+            --chat-messenger-color--surface: #ffffff !important;
+            --chat-messenger-color--surface-dim: #ffffff !important;
+            --chat-messenger-color--surface-bright: #ffffff !important;
+            --chat-messenger-color--surface-container-lowest: #ffffff !important;
+            --chat-messenger-color--surface-container-low: #ffffff !important;
+            --chat-messenger-color--surface-container: #ffffff !important;
+            --chat-messenger-color--surface-container-high: #ffffff !important;
+            --chat-messenger-color--surface-container-highest: #ffffff !important;
+          }
+        </style>
         <chat-reset-session-button slot="titlebar-actions" title-text="Nueva conversación"></chat-reset-session-button>
         <chat-toggle-dialog-button slot="titlebar-actions" title-text-expanded="Contraer" title-text-collapsed="Expandir"></chat-toggle-dialog-button>
         <chat-messenger-close-button slot="titlebar-actions" title-text="Cerrar"></chat-messenger-close-button>
