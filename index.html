@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Santander Select | Asistente Virtual</title>
-  <meta name="santander-build" content="account-dashboard-enriched-v3">
+  <meta name="santander-build" content="account-dashboard-enriched-mic-final-v1">
 
   <!-- Same-origin card images: preload the most common set and prefetch the rest. -->
   <link rel="preload" as="image" href="./TS_Individuos_VISA_CREDITO_BLACK_Laura_Castro_Con_Chip_5c11f5a949.jpg" fetchpriority="high">
@@ -1613,7 +1613,7 @@
       transition: transform .18s ease;
     }
     #chat-fab:hover { transform: scale(1.06); }
-    /* Custom mic button — mounted inside the active SDK composer shadow root. */
+    /* Custom mic button — dynamically mounted in the active SDK composer root. */
     #custom-mic-btn {
       position: fixed;
       left: -9999px;
@@ -3295,9 +3295,21 @@
         root.appendChild(style);
       }
 
-      function mountMicInDocument() {
-        if (micBtn.parentNode !== document.body) {
-          document.body.appendChild(micBtn);
+      function mountMicInActiveRoot(parts) {
+        const mountRoot = parts && parts.mountRoot;
+        const targetRoot = mountRoot && typeof mountRoot.appendChild === 'function'
+          ? mountRoot
+          : document.body;
+
+        // Expanded chat is rendered in the browser top layer. A fixed element
+        // that remains under document.body can sit behind that layer regardless
+        // of z-index, so keep the mic in the active composer's own root.
+        if (targetRoot instanceof ShadowRoot) {
+          injectMicStyles(targetRoot);
+        }
+
+        if (micBtn.parentNode !== targetRoot) {
+          targetRoot.appendChild(micBtn);
         }
       }
 
@@ -3337,6 +3349,7 @@
         const wrapper = document.getElementById('chat-wrapper');
         const parts = window.getSantanderComposerParts && window.getSantanderComposerParts();
         const inputElement = parts && parts.input;
+        const sendButton = parts && parts.sendButton;
 
         if (!wrapper || wrapper.style.visibility === 'hidden' || !inputElement) {
           hideMicButton();
@@ -3349,23 +3362,32 @@
           return;
         }
 
-        mountMicInDocument();
+        mountMicInActiveRoot(parts);
         observeActiveComposer(parts);
 
-        // Anchor to the input itself, never to the send button. The SDK can move
-        // the send button when the textarea grows or when the dialog expands.
-        // Keeping a fixed inset from the input's bottom-right corner makes the mic
-        // remain visually stable in single-line, multiline, compact and expanded modes.
-        const rightInset = 11;
-        const bottomInset = inputRect.height > 58 ? 9 : Math.max(5, (inputRect.height - MIC_SIZE) / 2);
-        let left = inputRect.right - MIC_SIZE - rightInset;
-        let top = inputRect.bottom - MIC_SIZE - bottomInset;
+        // Keep the mic visually paired with the send button. The result stays
+        // consistent in compact, multiline and expanded layouts.
+        let left;
+        let top;
+        const sendIsUsable = sendButton && window.santanderIsVisible(sendButton);
+
+        if (sendIsUsable) {
+          const sendRect = sendButton.getBoundingClientRect();
+          left = sendRect.left - MIC_SIZE - MIC_SEND_GAP;
+          top = sendRect.top + (sendRect.height - MIC_SIZE) / 2;
+        } else {
+          // Short fallback while the SDK is between render frames.
+          const rightInset = 12;
+          left = inputRect.right - MIC_SIZE - rightInset;
+          top = inputRect.top + (inputRect.height - MIC_SIZE) / 2;
+        }
 
         left = Math.max(6, Math.min(left, window.innerWidth - MIC_SIZE - 6));
         top = Math.max(6, Math.min(top, window.innerHeight - MIC_SIZE - 6));
 
         micBtn.style.left = `${Math.round(left)}px`;
         micBtn.style.top = `${Math.round(top)}px`;
+        micBtn.style.transform = 'translateZ(0)';
         micBtn.style.opacity = '1';
         micBtn.style.pointerEvents = 'auto';
       }
@@ -3608,7 +3630,7 @@
 
       // Low-frequency fallback for SDK updates that do not emit a useful event.
       setInterval(positionMicButton, 1200);
-      mountMicInDocument();
+      mountMicInActiveRoot(null);
       scheduleMicPosition();
 
       // ---- Text-to-speech for new agent messages ----
